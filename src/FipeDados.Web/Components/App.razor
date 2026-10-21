@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <ResourcePreloader />
+    <meta name="theme-color" content="#127855" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&family=Manrope:wght@400;500;600;650;700;750;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
+    <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="stylesheet" href="@Assets["FipeDados.Web.styles.css"]" />
+    <ImportMap />
+    <link rel="icon" type="image/svg+xml" href="@Assets["favicon.svg"]" />
+    @if (ExibirAnuncios)
+    {
+        <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=@Anuncios.Value.AdSenseClientId" crossorigin="anonymous"></script>
+    }
+    <HeadOutlet @rendermode="PageRenderMode" />
+</head>
+
+<body>
+    <Routes @rendermode="PageRenderMode" />
+    <ReconnectModal />
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+</body>
+
+</html>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    [Inject] private IOptions<AnunciosOptions> Anuncios { get; set; } = default!;
+
+    // Páginas de conta ([ExcludeFromInteractiveRouting]) rodam em SSR estático para gravar o cookie de login.
+    private IComponentRenderMode? PageRenderMode => HttpContext.AcceptsInteractiveRouting() ? InteractiveServer : null;
+
+    // AdSense só com o Publisher ID configurado e nunca para contas no plano sem anúncios.
+    private bool ExibirAnuncios => !string.IsNullOrEmpty(Anuncios.Value.AdSenseClientId)
+                                   && !PlanoUsuario.SemAnuncios(HttpContext.User, DateTime.UtcNow);
+}

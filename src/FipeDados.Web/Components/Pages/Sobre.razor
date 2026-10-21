@@ -1,0 +1,27 @@
+@page "/sobre"
+
+<SeoMetadata Title="Sobre a VALORDAFIPE: fontes e metodologia da Tabela Fipe"
+             Description="Entenda como a VALORDAFIPE organiza os valores da Tabela Fipe, o histórico de preços e os rankings de carros e motos, incluindo os limites de cobertura."
+             Path="/sobre" Breadcrumbs="crumbs" />
+<Breadcrumbs Items="crumbs" />
+<div class="explore-heading"><h1>Dados com <span>contexto e transparência.</span></h1><p>Saiba de onde vêm os valores e como interpretar os indicadores.</p></div>
+<article class="seo-copy about-copy">
+    <h2>O que é a VALORDAFIPE?</h2>
+    <p>A VALORDAFIPE é um projeto independente para consultar preços de referência de carros e motos e acompanhar sua evolução. Não há vínculo com a Fundação Instituto de Pesquisas Econômicas (Fipe).</p>
+    <h2>Fonte e referência dos preços</h2>
+    <p>Os valores são obtidos do <a href="https://veiculos.fipe.org.br/" target="_blank" rel="noopener noreferrer">site da Tabela Fipe</a> e armazenados em uma base própria. Cada preço corresponde a uma tabela mensal, modelo, ano e combustível. O mês de referência aparece junto ao valor: o último preço disponível pode não ser o do mês corrente.</p>
+    <h2>Histórico e atualização</h2>
+    <p>A consulta exibe até 24 referências mensais, conforme os dados disponíveis. Ao abrir um veículo, a página consulta automaticamente na Fipe os meses que faltam no histórico, reutilizando os preços já armazenados. O catálogo usa os dados da base. Falhas de acesso à fonte ou meses sem cotação podem deixar lacunas; não estimamos os valores ausentes.</p>
+    <h2>Como interpretar as variações</h2>
+    <p>A variação percentual entre dois valores é calculada por (valor final − valor inicial) ÷ valor inicial × 100. Na página individual, o indicador entre cotações usa os dois últimos preços disponíveis, que podem não ser de meses consecutivos; a variação de aproximadamente 12 meses usa o preço disponível na data ou antes da data de comparação.</p>
+    <p>Na comparação de veículos, os dois históricos usam as mesmas datas inicial e final. A página sinaliza períodos parciais e referências defasadas. Os preços não disponíveis permanecem ausentes no gráfico e na tabela.</p>
+    <h2>O que entra no ranking?</h2>
+    <p>O ranking compara a referência mensal mais recente da base com o mês imediatamente anterior. Só entram veículos com preços positivos nos dois meses. Cada combinação de modelo, ano e combustível é avaliada separadamente. O ranking considera a cobertura da nossa base e pode não representar todo o mercado.</p>
+    <h2>Referência para negociação</h2>
+    <p>A Tabela Fipe é uma referência. O preço efetivo de compra ou venda pode variar conforme conservação, região, quilometragem, equipamentos e condições de negociação.</p>
+    <p><a href="/catalogo">Navegar pelas marcas</a> · <a href="/consultar-tabela-fipe">Consultar um veículo</a> · <a href="/comparar">Comparar históricos</a></p>
+</article>
+
+@code {
+    private static readonly IReadOnlyList<SeoBreadcrumb> crumbs = [new("Início", "/"), new("Sobre e metodologia", "/sobre")];
+}

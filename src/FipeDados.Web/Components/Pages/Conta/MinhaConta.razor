@@ -1,0 +1,52 @@
+@page "/conta"
+@attribute [Authorize]
+@inject UsuarioAtual UsuarioAtual
+
+<SeoMetadata Title="Minha conta | VALORDAFIPE" Description="Dados de acesso e plano da sua conta na VALORDAFIPE." Path="@ContaUrls.MinhaConta" NoIndex="true" />
+<div class="explore-heading"><h1>Minha <span>conta.</span></h1><p>Seus dados de acesso e o plano da conta.</p></div>
+@if (usuario is not null)
+{
+    <div class="account-grid">
+        <section class="account-panel" aria-labelledby="conta-acesso">
+            <span class="account-icon"><Icon Name="user" /></span>
+            <h2 id="conta-acesso">Acesso</h2>
+            <dl class="account-data">
+                <dt>E-mail</dt><dd>@usuario.Email</dd>
+                <dt>Conta criada em</dt><dd>@UsuarioAtual.Brasilia(usuario.CriadoEm).ToString("dd/MM/yyyy")</dd>
+            </dl>
+            <a class="account-panel-link" href="/conta/senha">Alterar senha <Icon Name="arrow" Size="16" /></a>
+        </section>
+        <section class="account-panel" aria-labelledby="conta-plano">
+            <span class="account-icon"><Icon Name="shield" /></span>
+            <h2 id="conta-plano">Plano</h2>
+            @if (PlanoUsuario.SemAnuncios(usuario, DateTime.UtcNow))
+            {
+                <strong class="plan-badge plan-premium">Sem anúncios</strong>
+                <p>Ativo até @UsuarioAtual.Brasilia(usuario.SemAnunciosAte!.Value).ToString("dd/MM/yyyy").</p>
+            }
+            else
+            {
+                <strong class="plan-badge">Gratuito</strong>
+                <p>Acesso completo às consultas, rankings e comparações. O plano sem anúncios estará disponível em breve.</p>
+            }
+        </section>
+        <section class="account-panel" aria-labelledby="conta-sessao">
+            <span class="account-icon"><Icon Name="info" /></span>
+            <h2 id="conta-sessao">Sessão</h2>
+            <p>Encerre o acesso neste aparelho ou exclua a conta e seus dados.</p>
+            <form action="/conta/sair" method="post">
+                <AntiforgeryToken />
+                <input type="hidden" name="returnUrl" value="/" />
+                <button type="submit" class="btn btn-outline-primary">Sair da conta</button>
+            </form>
+            <a class="account-danger-link" href="/conta/excluir">Excluir conta</a>
+        </section>
+    </div>
+}
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    private Usuario? usuario;
+
+    protected override async Task OnInitializedAsync() => usuario = await UsuarioAtual.ObterAsync(HttpContext);
+}

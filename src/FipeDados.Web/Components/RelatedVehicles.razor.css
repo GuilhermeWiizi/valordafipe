@@ -1,0 +1,36 @@
+.related-vehicles { margin: 40px 0; }
+.related-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 23px; }
+.related-eyebrow { color: #91a186; letter-spacing: 1.2px; font-size: 8px; }
+.related-heading h2 { margin: 8px 0; font-size: 23px; letter-spacing: -.7px; font-weight: 700; }
+.related-heading p { font-size: 11px; color: #91a083; line-height: 1.8; margin: 0; }
+.related-heading > a { display: flex; gap: 8px; align-items: center; white-space: nowrap; font-size: 11px; }
+.related-year-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 13px; }
+.related-year { border: 1px solid #dfe7d7; border-radius: 10px; padding: 20px 17px; display: flex; flex-direction: column; background: #fff; }
+.related-year > span { font-size: 11px; color: #8a9c7d; }
+.related-year > strong { font-size: 22px; font-weight: 600; margin-top: 10px; color: #48653a; letter-spacing: -.7px; }
+.related-year > small { font-size: 9px; line-height: 1.7; color: #98a78a; margin: 8px 0 20px; }
+.related-year > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; font-size: 9px; border-top: 1px solid #eaf0e3; padding-top: 13px; }
+.related-year > div a { display: inline-flex; gap: 5px; align-items: center; }
+.related-year.current-year { border-color: #8aaf85; background: #f0f7ea; box-shadow: inset 0 3px #74a26b; }
+.related-selected { color: #6d945c; display: inline-flex; align-items: center; gap: 6px; font-size: 9px; }
+.related-reference, .related-note { display: flex; align-items: flex-start; gap: 8px; font-size: 9px; line-height: 1.9; color: #96a38b; margin-top: 15px; }
+.similar-heading { margin-top: 40px; }
+.related-cache-label { color: #8da07f; border: 1px solid #dce6d3; border-radius: 5px; padding: 7px 9px; font-size: 9px; white-space: nowrap; }
+.similar-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.similar-card { padding: 22px; border: 1px solid #dde7d3; background: #fff; border-radius: 11px; display: flex; flex-direction: column; }
+.similar-card:hover { border-color: #acbf9d; box-shadow: 0 5px 16px #2b472008; }
+.similar-brand { text-transform: uppercase; color: #98a98b; font-size: 8px; letter-spacing: .8px; }
+.similar-card h3 { font-size: 13px; font-weight: 600; line-height: 1.8; margin: 10px 0 6px; }
+.similar-card h3 a { color: #5c764b; }
+.similar-card h3 a:hover { color: #2e723c; }
+.similar-year { font-size: 10px; color: #9cae8c; margin-bottom: 22px; }
+.similar-price { margin-top: auto; }
+.similar-price strong { display: block; font-size: 22px; color: #466338; letter-spacing: -.7px; font-weight: 600; }
+.similar-price small { display: block; color: #96a886; font-size: 9px; margin: 8px 0 19px; }
+.similar-compare { display: flex; align-items: center; justify-content: space-between; font-size: 10px; padding-top: 14px; border-top: 1px solid #eaf0e3; }
+.related-empty { display: flex; gap: 17px; align-items: center; border: 1px dashed #d5e2c9; border-radius: 11px; padding: 28px; color: #8ca17d; background: #fbfdf7; }
+.related-empty h3 { font-size: 14px; font-weight: 600; color: #6f895c; }
+.related-empty p { font-size: 11px; line-height: 1.8; margin: 7px 0 0; }
+.related-loading { height: 170px; }
+@media (max-width: 1100px) { .similar-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.related-heading h2 { font-size: 21px; } }
+@media (max-width: 600px) { .related-heading { align-items: flex-start; flex-wrap: wrap; gap: 13px; }.related-heading h2 { font-size: 22px; line-height: 1.4; }.related-heading p { font-size: 10px; }.related-eyebrow { font-size: 7px; }.related-year-grid { grid-template-columns: 1fr 1fr; gap: 10px; }.related-year { padding: 18px 13px; }.related-year > strong { font-size: 19px; }.related-year > div { flex-wrap: wrap; gap: 12px; }.related-reference, .related-note { font-size: 8px; }.similar-grid { grid-template-columns: 1fr; }.similar-card { padding: 23px; }.similar-price strong { font-size: 24px; }.similar-card h3 { font-size: 15px; }.related-cache-label { font-size: 8px; } }

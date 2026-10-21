@@ -1,0 +1,68 @@
+@page "/conta/senha"
+@attribute [Authorize]
+@inject UserManager<Usuario> UserManager
+@inject SignInManager<Usuario> SignInManager
+@inject UsuarioAtual UsuarioAtual
+
+<SeoMetadata Title="Alterar senha | VALORDAFIPE" Description="Altere a senha da sua conta na VALORDAFIPE." Path="/conta/senha" NoIndex="true" />
+<ContaCartao Titulo="Alterar senha" Texto="Ao trocar a senha, as sessões abertas em outros aparelhos são encerradas." Icone="shield" Erros="erros" Sucesso="@sucesso">
+    <EditForm Model="Input" method="post" OnValidSubmit="AlterarAsync" OnInvalidSubmit="Input.LimparSenhas" FormName="alterar-senha" class="account-form">
+        <DataAnnotationsValidator />
+        <label for="atual">Senha atual</label>
+        <InputText id="atual" type="password" @bind-Value="Input.SenhaAtual" class="form-control" autocomplete="current-password" aria-required="true" />
+        <ValidationMessage For="() => Input.SenhaAtual" />
+        <label for="nova">Nova senha</label>
+        <InputText id="nova" type="password" @bind-Value="Input.NovaSenha" class="form-control" autocomplete="new-password" aria-required="true" />
+        <ValidationMessage For="() => Input.NovaSenha" />
+        <label for="confirmacao">Confirme a nova senha</label>
+        <InputText id="confirmacao" type="password" @bind-Value="Input.Confirmacao" class="form-control" autocomplete="new-password" aria-required="true" />
+        <ValidationMessage For="() => Input.Confirmacao" />
+        <button type="submit" class="btn btn-primary">Alterar senha</button>
+    </EditForm>
+    <div class="account-links"><a href="@ContaUrls.MinhaConta">Voltar para minha conta</a></div>
+</ContaCartao>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    [SupplyParameterFromForm] private Dados Input { get; set; } = default!;
+    private Usuario? usuario;
+    private IReadOnlyList<string> erros = [];
+    private string? sucesso;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        usuario = await UsuarioAtual.ObterAsync(HttpContext);
+    }
+
+    private async Task AlterarAsync()
+    {
+        if (usuario is null) return;
+        var resultado = await UserManager.ChangePasswordAsync(usuario, Input.SenhaAtual, Input.NovaSenha);
+        Input.LimparSenhas();
+        if (!resultado.Succeeded)
+        {
+            erros = resultado.Errors.Select(e => e.Description).Distinct().ToList();
+            return;
+        }
+        // A troca muda o security stamp; renovar o cookie mantém esta sessão válida.
+        await SignInManager.RefreshSignInAsync(usuario);
+        sucesso = "Senha alterada.";
+    }
+
+    private sealed class Dados
+    {
+        [Required(ErrorMessage = "Informe a senha atual."), DataType(DataType.Password)]
+        public string SenhaAtual { get; set; } = "";
+
+        [Required(ErrorMessage = "Informe a nova senha."), DataType(DataType.Password)]
+        [StringLength(100, MinimumLength = ContasExtensions.TamanhoMinimoSenha, ErrorMessage = "A senha precisa ter de {2} a {1} caracteres.")]
+        public string NovaSenha { get; set; } = "";
+
+        [DataType(DataType.Password), Compare(nameof(NovaSenha), ErrorMessage = "As senhas não conferem.")]
+        public string Confirmacao { get; set; } = "";
+
+        // O SSR devolveria o value dos campos de senha no HTML; nunca reexibir senha.
+        public void LimparSenhas() => SenhaAtual = NovaSenha = Confirmacao = "";
+    }
+}

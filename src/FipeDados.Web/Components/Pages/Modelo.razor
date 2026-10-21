@@ -1,0 +1,44 @@
+@page "/tabela-fipe/{Tipo}/{MarcaSlug}/{ModeloSlug}"
+@inject PublicCatalog Catalog
+@inject NavigationManager Nav
+
+@if (data is { } d)
+{
+    <SeoMetadata Title="@($"Tabela Fipe {d.Brand.Name} {d.Name}: preços por ano{PageSuffix} | VALORDAFIPE")"
+                 Description="@($"Veja os anos e combustíveis de {d.Brand.Name} {d.Name}{CodeSuffix} com preços na base. Consulte valores da Tabela Fipe e acompanhe o histórico mensal.{PageSuffix}")"
+                 Path="@CanonicalPath" NoIndex="@(d.Count == 0)" Breadcrumbs="crumbs" />
+    <Breadcrumbs Items="crumbs" />
+    <div class="explore-heading"><h1>Tabela Fipe <span>@d.Brand.Name @d.Name.</span></h1><p>@if (d.CodigoFipe is { } codigo) { <text>Código Fipe <strong>@codigo</strong>. </text> }Escolha o ano e o combustível para consultar o valor de referência e o histórico mensal.</p></div>
+    <section class="catalog-section"><h2>Anos e combustíveis @PageSuffix</h2>
+        <ul class="catalog-links">
+            @foreach (var item in d.Vehicles)
+            {
+                <li><a href="@item.Path">@d.Brand.Name @d.Name — @item.Name <span aria-hidden="true">→</span></a></li>
+            }
+        </ul>
+        @if (d.Count == 0) { <p>Ainda não há preços publicados para este modelo. <a href="/consultar-tabela-fipe">Fazer uma consulta</a>.</p> }
+    </section>
+    <CatalogPagination Page="@CurrentPage" Count="@d.Count" Path="@d.Path" />
+    <section class="seo-copy"><h2>Quanto vale @d.Brand.Name @d.Name?</h2><p>Cada ano e combustível tem uma referência própria na Tabela Fipe. Abra a versão desejada para ver o preço, o mês de referência e a evolução dos valores disponíveis. Meses ausentes não são estimados.</p><p><a href="@d.Brand.Path">Outros modelos @d.Brand.Name</a> · <a href="/comparar">Comparar veículos</a></p></section>
+}
+
+@code {
+    [Parameter] public string Tipo { get; set; } = "";
+    [Parameter] public string MarcaSlug { get; set; } = "";
+    [Parameter] public string ModeloSlug { get; set; } = "";
+    [SupplyParameterFromQuery(Name = "pagina")] public int? Pagina { get; set; }
+    private ModelPage? data;
+    private IReadOnlyList<SeoBreadcrumb> crumbs = [];
+    private int CurrentPage => Pagina ?? 1;
+    private string PageSuffix => CurrentPage > 1 ? $" — página {CurrentPage}" : "";
+    private string CodeSuffix => data?.CodigoFipe is { } code ? $" (código Fipe {code})" : "";
+    private string CanonicalPath => data is null ? "" : CatalogPaths.Paged(data.Path, CurrentPage);
+    protected override async Task OnParametersSetAsync()
+    {
+        data = CatalogPaths.ParseType(Tipo) is { } type
+            ? await Catalog.Model(type, MarcaSlug.ToLowerInvariant(), ModeloSlug.ToLowerInvariant(), CurrentPage)
+            : null;
+        if (data is null) { Nav.NotFound(); return; }
+        crumbs = [new("Início", "/"), new("Marcas", "/catalogo"), new(data.Brand.Name, data.Brand.Path), new(data.Name, CanonicalPath)];
+    }
+}

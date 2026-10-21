@@ -1,0 +1,29 @@
+@page "/Error"
+@using System.Diagnostics
+
+<SeoMetadata Title="Não foi possível carregar a página | VALORDAFIPE" Description="Ocorreu uma falha temporária. Tente novamente em instantes." Path="/Error" NoIndex="true" />
+
+<h1>Não foi possível carregar esta página.</h1>
+<p>Tente novamente em instantes ou <a href="/">volte ao início</a>.</p>
+
+@if (ShowRequestId)
+{
+    <p>
+        <strong>Identificador da falha:</strong> <code>@RequestId</code>
+    </p>
+}
+
+
+@code{
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+
+    protected override void OnInitialized()
+    {
+        if (HttpContext is { Response.HasStarted: false }) HttpContext.Response.StatusCode = 500;
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+    }
+}

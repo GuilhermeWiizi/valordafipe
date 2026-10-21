@@ -1,0 +1,53 @@
+@page "/conta/esqueci-senha"
+@using System.Text
+@using System.Text.Encodings.Web
+@using Microsoft.AspNetCore.WebUtilities
+@inject UserManager<Usuario> UserManager
+@inject IEmailSender<Usuario> EmailSender
+@inject NavigationManager Nav
+@inject SeoSite Site
+@inject IWebHostEnvironment Environment
+
+<SeoMetadata Title="Esqueci minha senha | VALORDAFIPE" Description="Receba um link para criar uma nova senha na VALORDAFIPE." Path="/conta/esqueci-senha" NoIndex="true" />
+<ContaCartao Titulo="Esqueci minha senha" Texto="Informe o e-mail da conta. Enviaremos um link para criar uma nova senha." Icone="shield" Sucesso="@sucesso">
+    @if (sucesso is null)
+    {
+        <EditForm Model="Input" method="post" OnValidSubmit="EnviarAsync" FormName="esqueci-senha" class="account-form">
+            <DataAnnotationsValidator />
+            <label for="email">E-mail</label>
+            <InputText id="email" type="email" @bind-Value="Input.Email" class="form-control" autocomplete="username" aria-required="true" />
+            <ValidationMessage For="() => Input.Email" />
+            <button type="submit" class="btn btn-primary">Enviar link</button>
+        </EditForm>
+    }
+    <div class="account-links"><a href="@ContaUrls.Entrar">Voltar para entrar</a></div>
+</ContaCartao>
+
+@code {
+    [SupplyParameterFromForm] private Dados Input { get; set; } = default!;
+    private string? sucesso;
+
+    protected override void OnInitialized() => Input ??= new();
+
+    private async Task EnviarAsync()
+    {
+        var usuario = await UserManager.FindByEmailAsync(Input.Email.Trim());
+        if (usuario?.Email is { } email)
+        {
+            var codigo = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(await UserManager.GeneratePasswordResetTokenAsync(usuario)));
+            var caminho = $"/conta/redefinir-senha?codigo={codigo}";
+            // Fora do desenvolvimento o link usa a origem configurada, nunca o Host da requisição:
+            // com Host forjado, o e-mail levaria o token da vítima para o domínio do atacante.
+            var link = Environment.IsDevelopment() ? Nav.ToAbsoluteUri(caminho).AbsoluteUri : Site.Url(caminho);
+            await EmailSender.SendPasswordResetLinkAsync(usuario, email, HtmlEncoder.Default.Encode(link));
+        }
+        // Mesma resposta com ou sem conta, para não revelar quais e-mails estão cadastrados.
+        sucesso = $"Se houver uma conta com esse e-mail, você receberá um link para criar uma nova senha. Ele vale por {ContasExtensions.ValidadeLinkSenha.TotalHours:0} horas.";
+    }
+
+    private sealed class Dados
+    {
+        [Required(ErrorMessage = "Informe o e-mail."), EmailAddress(ErrorMessage = "Informe um e-mail válido.")]
+        public string Email { get; set; } = "";
+    }
+}

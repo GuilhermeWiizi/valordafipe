@@ -1,0 +1,7 @@
+@inject NavigationManager Nav
+
+@code {
+    // Páginas [Authorize] em SSR já são barradas pelo middleware; isto cobre a navegação interativa.
+    protected override void OnInitialized()
+        => Nav.NavigateTo(ContaUrls.ComRetorno(ContaUrls.Entrar, "/" + Nav.ToBaseRelativePath(Nav.Uri)), forceLoad: true);
+}

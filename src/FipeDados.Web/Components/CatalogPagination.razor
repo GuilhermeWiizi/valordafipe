@@ -1,0 +1,22 @@
+@if (Pages > 1)
+{
+    <nav class="catalog-pagination" aria-label="Paginação do catálogo">
+        @if (Page > 1)
+        {
+            <a href="@PageUrl(Page - 1)" rel="prev">← Anterior</a>
+        }
+        <span aria-current="page">Página @Page de @Pages</span>
+        @if (Page < Pages)
+        {
+            <a href="@PageUrl(Page + 1)" rel="next">Próxima →</a>
+        }
+    </nav>
+}
+
+@code {
+    [Parameter] public int Page { get; set; }
+    [Parameter] public int Count { get; set; }
+    [Parameter] public string Path { get; set; } = "";
+    private int Pages => (int)Math.Ceiling(Count / (double)PublicCatalog.PageSize);
+    private string PageUrl(int page) => page == 1 ? Path : $"{Path}?pagina={page}";
+}

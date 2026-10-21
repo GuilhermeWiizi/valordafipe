@@ -1,0 +1,32 @@
+@using System.Globalization
+<section class="ranking-card @(Alta ? "ranking-up" : "ranking-down")" aria-label="@Titulo">
+    <div class="ranking-card-heading"><span class="trend-icon"><Icon Name="@(Alta ? "up" : "down")" Size="23" /></span><div><h3>@Titulo</h3><p>Maiores @(Alta ? "altas" : "quedas") percentuais no mês</p></div><span class="top-five">TOP 5</span></div>
+    @if (Carregando)
+    {
+        <div class="ranking-loading" role="status" aria-label="Carregando ranking">@for (var i = 0; i < 3; i++) { <div class="skeleton ranking-skeleton"></div> }</div>
+    }
+    else if (Itens.Count == 0)
+    {
+        <div class="ranking-empty"><Icon Name="@(Alta ? "up" : "down")" Size="32" /><h4>@(SemComparacao ? "O histórico está ganhando forma" : Alta ? "Nenhuma alta na base comparada" : "Nenhuma queda na base comparada")</h4><p>@(SemComparacao ? "Precisamos de preços deste mês e do mês anterior para montar este ranking." : "Não há veículos com essa variação nos dados disponíveis para este filtro.")</p><a href="consultar-tabela-fipe">Consultar Tabela Fipe <Icon Name="arrow" Size="15" /></a></div>
+    }
+    else
+    {
+        <div class="ranking-column-labels"><span>VEÍCULO / ANO</span><span>PREÇO E VARIAÇÃO</span></div>
+        <ol class="ranking-list">
+            @for (var i = 0; i < Itens.Count; i++)
+            {
+                var item = Itens[i];
+                <li><a href="@CatalogPaths.Vehicle(item)"><span class="rank-number">@((i + 1).ToString("00"))</span><span class="rank-vehicle"><strong>@item.Marca @item.Modelo</strong><small>@item.AnoLabel</small></span><span class="rank-values"><strong>@item.ValorAtual.ToString("C0", Pt)</strong><span class="variation-pill"><Icon Name="@(Alta ? "up" : "down")" Size="13" />@item.VariacaoPct.ToString("+0.00;-0.00;0.00", Pt)%</span></span><Icon Name="arrow" Size="16" Class="rank-arrow" /></a></li>
+            }
+        </ol>
+    }
+    <div class="ranking-card-footer"><Icon Name="info" Size="14" /> Comparação com o mês imediatamente anterior</div>
+</section>
+@code {
+    [Parameter] public bool Alta { get; set; }
+    [Parameter] public bool Carregando { get; set; }
+    [Parameter] public bool SemComparacao { get; set; }
+    [Parameter] public IReadOnlyList<ItemRanking> Itens { get; set; } = [];
+    private string Titulo => Alta ? "Mais valorizaram" : "Mais desvalorizaram";
+    private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-BR");
+}

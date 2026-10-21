@@ -1,0 +1,70 @@
+@page "/conta/cadastrar"
+@inject UserManager<Usuario> UserManager
+@inject SignInManager<Usuario> SignInManager
+@inject NavigationManager Nav
+
+<SeoMetadata Title="Criar conta | VALORDAFIPE" Description="Crie sua conta gratuita na VALORDAFIPE." Path="@ContaUrls.Cadastrar" NoIndex="true" />
+<ContaCartao Titulo="Criar sua conta" Texto="Gratuita e opcional. Com ela você poderá assinar o plano sem anúncios quando ele estiver disponível." Erros="erros">
+    <EditForm Model="Input" method="post" OnValidSubmit="CadastrarAsync" OnInvalidSubmit="Input.LimparSenhas" FormName="cadastrar" class="account-form">
+        <DataAnnotationsValidator />
+        <label for="email">E-mail</label>
+        <InputText id="email" type="email" @bind-Value="Input.Email" class="form-control" autocomplete="username" aria-required="true" />
+        <ValidationMessage For="() => Input.Email" />
+        <label for="senha">Senha</label>
+        <InputText id="senha" type="password" @bind-Value="Input.Senha" class="form-control" autocomplete="new-password" aria-required="true" aria-describedby="senha-dica" />
+        <small id="senha-dica" class="account-hint">Mínimo de @ContasExtensions.TamanhoMinimoSenha caracteres. Uma frase longa é mais segura que símbolos.</small>
+        <ValidationMessage For="() => Input.Senha" />
+        <label for="confirmacao">Confirme a senha</label>
+        <InputText id="confirmacao" type="password" @bind-Value="Input.Confirmacao" class="form-control" autocomplete="new-password" aria-required="true" />
+        <ValidationMessage For="() => Input.Confirmacao" />
+        <button type="submit" class="btn btn-primary">Criar conta</button>
+    </EditForm>
+    <p class="account-note">Ao criar a conta, você aceita os <a href="/termos">Termos de uso</a>. Usamos seu e-mail apenas para o acesso à conta e para recuperar a senha, como explica a <a href="/privacidade">Política de privacidade</a>. Você pode excluir a conta quando quiser.</p>
+    <div class="account-links"><span>Já tem conta?</span><a href="@ContaUrls.ComRetorno(ContaUrls.Entrar, ReturnUrl ?? "/")">Entrar</a></div>
+</ContaCartao>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+    [SupplyParameterFromForm] private Dados Input { get; set; } = default!;
+    private IReadOnlyList<string> erros = [];
+
+    protected override void OnInitialized()
+    {
+        Input ??= new();
+        if (HttpMethods.IsGet(HttpContext.Request.Method) && HttpContext.User.Identity?.IsAuthenticated == true)
+            Nav.NavigateTo(ContaUrls.MinhaConta);
+    }
+
+    private async Task CadastrarAsync()
+    {
+        var email = Input.Email.Trim();
+        var usuario = new Usuario { UserName = email, Email = email, CriadoEm = DateTime.UtcNow };
+        var resultado = await UserManager.CreateAsync(usuario, Input.Senha);
+        if (!resultado.Succeeded)
+        {
+            Input.LimparSenhas();
+            // E-mail duplicado gera DuplicateUserName e DuplicateEmail com o mesmo texto.
+            erros = resultado.Errors.Select(e => e.Description).Distinct().ToList();
+            return;
+        }
+        await SignInManager.SignInAsync(usuario, isPersistent: true);
+        Nav.NavigateTo(ContaUrls.Retorno(ReturnUrl, ContaUrls.MinhaConta));
+    }
+
+    private sealed class Dados
+    {
+        [Required(ErrorMessage = "Informe o e-mail."), EmailAddress(ErrorMessage = "Informe um e-mail válido."), StringLength(256, ErrorMessage = "E-mail longo demais.")]
+        public string Email { get; set; } = "";
+
+        [Required(ErrorMessage = "Crie uma senha."), DataType(DataType.Password)]
+        [StringLength(100, MinimumLength = ContasExtensions.TamanhoMinimoSenha, ErrorMessage = "A senha precisa ter de {2} a {1} caracteres.")]
+        public string Senha { get; set; } = "";
+
+        [DataType(DataType.Password), Compare(nameof(Senha), ErrorMessage = "As senhas não conferem.")]
+        public string Confirmacao { get; set; } = "";
+
+        // O SSR devolveria o value dos campos de senha no HTML; nunca reexibir senha.
+        public void LimparSenhas() => Senha = Confirmacao = "";
+    }
+}

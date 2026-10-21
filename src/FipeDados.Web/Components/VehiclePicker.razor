@@ -1,0 +1,115 @@
+@inject ICatalogService Catalog
+@inject ILogger<VehiclePicker> Logger
+@inject PublicCatalog PublicCatalog
+@implements IDisposable
+
+@if (InitialSelection is { } inicial && !escolherOutro)
+{
+    <section class="compare-picker preset-picker" aria-label="@Label"><header class="compare-picker-heading"><span class="compare-letter @ColorClass">@Letter</span><div><h2>@Label</h2><p>Seleção trazida da consulta.</p></div></header><h3 class="preset-model">@inicial.Marca @inicial.Modelo</h3><p class="preset-year">@inicial.AnoLabel · @inicial.Tipo</p><p class="preset-price">@(inicial.Resumo?.ValorAtual.ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("pt-BR")) ?? "Sem preço na base")<small>@inicial.Resumo?.MesReferencia</small></p><button class="btn btn-outline-primary" disabled="@Disabled" @onclick="EscolherOutro">Escolher outro veículo</button></section>
+}
+else
+{
+<section class="compare-picker" aria-label="@Label">
+    <header class="compare-picker-heading"><span class="compare-letter @ColorClass">@Letter</span><div><h2>@Label</h2><p>@Description</p></div><Icon Name="car" Class="picker-watermark" Size="25" /></header>
+    <div class="segmented-control compare-type" role="group" aria-label="Tipo de @Label">
+        <button disabled="@Disabled" class="@(tipo == TipoVeiculo.Carro ? "selected" : "")" aria-pressed="@(tipo == TipoVeiculo.Carro)" @onclick="() => TrocarTipo(TipoVeiculo.Carro)"><Icon Name="car" Size="17" /> Carro</button>
+        <button disabled="@Disabled" class="@(tipo == TipoVeiculo.Moto ? "selected" : "")" aria-pressed="@(tipo == TipoVeiculo.Moto)" @onclick="() => TrocarTipo(TipoVeiculo.Moto)"><Icon Name="bike" Size="17" /> Moto</button>
+    </div>
+    <div class="compare-picker-fields">
+        <SearchSelect Label="Marca" Step="01" Items="marcas" Value="marcaId" ValueChanged="TrocarMarca" Loading="carregandoMarcas" Disabled="@(Disabled || marcas.Count == 0)" Placeholder="Escolha a marca" />
+        <SearchSelect Label="Modelo" Step="02" Items="modelos" Value="modeloId" ValueChanged="TrocarModelo" Loading="carregandoModelos" Disabled="@(Disabled || modelos.Count == 0)" Placeholder="@(marcaId == 0 ? "Selecione a marca primeiro" : "Escolha o modelo")" />
+        <SearchSelect Label="Ano / combustível" Step="03" Items="anos" Value="veiculoId" ValueChanged="Selecionar" Loading="carregandoAnos" Disabled="@(Disabled || anos.Count == 0)" Placeholder="@(modeloId == 0 ? "Selecione o modelo primeiro" : "Escolha o ano")" />
+    </div>
+    @if (erro is not null) { <div class="notice" role="alert"><span>@erro</span><button class="text-button" disabled="@Disabled" @onclick="Repetir">Tentar novamente</button></div> }
+    <div class="compare-picker-status" aria-live="polite"><Icon Name="@(veiculoId > 0 ? "check" : "info")" Size="14" />@(veiculoId > 0 ? "Veículo selecionado" : "Escolha marca, modelo e ano para continuar")</div>
+</section>
+}
+
+@code {
+    [Parameter] public string Label { get; set; } = "Veículo A";
+    [Parameter] public string Letter { get; set; } = "A";
+    [Parameter] public string Description { get; set; } = "";
+    [Parameter] public string ColorClass { get; set; } = "";
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public EventCallback<int> ValueChanged { get; set; }
+    [Parameter] public DetalheVeiculo? InitialSelection { get; set; }
+    private TipoVeiculo tipo = TipoVeiculo.Carro;
+    private int marcaId, modeloId, veiculoId, versao;
+    private IReadOnlyList<ItemSelecao> marcas = [], modelos = [], anos = [];
+    private bool carregandoMarcas, carregandoModelos, carregandoAnos;
+    private string? erro;
+    private bool escolherOutro, iniciado;
+    private int? inicialId;
+    private readonly CancellationTokenSource lifetime = new();
+    protected override async Task OnParametersSetAsync()
+    {
+        if (iniciado && inicialId == InitialSelection?.VeiculoId) return;
+        iniciado = true; inicialId = InitialSelection?.VeiculoId; escolherOutro = false;
+        tipo = InitialSelection?.Tipo ?? TipoVeiculo.Carro;
+        marcas = await PublicCatalog.CachedBrands(tipo, lifetime.Token);
+        if (marcas.Count == 0) erro = "As marcas ainda não estão na base. Tente novamente para consultar a fonte.";
+    }
+    private async Task EscolherOutro()
+    {
+        escolherOutro = true; marcaId = modeloId = veiculoId = 0; modelos = anos = [];
+        await ValueChanged.InvokeAsync(0);
+    }
+
+    private async Task TrocarTipo(TipoVeiculo valor)
+    {
+        if (Disabled || (tipo == valor && marcas.Count > 0)) return;
+        tipo = valor; marcaId = modeloId = 0; marcas = modelos = anos = [];
+        await Carregar(0);
+    }
+    private async Task TrocarMarca(int valor)
+    {
+        if (Disabled || marcaId == valor) return;
+        marcaId = valor; modeloId = 0; modelos = anos = [];
+        await Carregar(1);
+    }
+    private async Task TrocarModelo(int valor)
+    {
+        if (Disabled || modeloId == valor) return;
+        modeloId = valor; anos = [];
+        await Carregar(2);
+    }
+    private async Task Selecionar(int valor)
+    {
+        if (Disabled) return;
+        veiculoId = valor;
+        await ValueChanged.InvokeAsync(valor);
+    }
+    private Task Repetir() => Carregar(modeloId > 0 ? 2 : marcaId > 0 ? 1 : 0);
+    private async Task Carregar(int etapa)
+    {
+        var requisicao = ++versao;
+        veiculoId = 0; erro = null;
+        carregandoMarcas = etapa == 0; carregandoModelos = etapa == 1; carregandoAnos = etapa == 2;
+        await ValueChanged.InvokeAsync(0);
+        try
+        {
+            var resultado = etapa switch
+            {
+                0 => await Catalog.ObterMarcasAsync(tipo, lifetime.Token),
+                1 => await Catalog.ObterModelosAsync(marcaId, lifetime.Token),
+                _ => await Catalog.ObterAnosAsync(modeloId, lifetime.Token)
+            };
+            if (requisicao != versao) return;
+            if (etapa == 0) marcas = resultado;
+            else if (etapa == 1) modelos = resultado;
+            else anos = resultado;
+            if (resultado.Count == 0) erro = "Nenhuma opção disponível no momento.";
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Falha no seletor de comparação, etapa {Etapa}.", etapa);
+            if (requisicao == versao) erro = "Não foi possível carregar as opções.";
+        }
+        finally
+        {
+            if (requisicao == versao) carregandoMarcas = carregandoModelos = carregandoAnos = false;
+        }
+    }
+    public void Dispose() { lifetime.Cancel(); lifetime.Dispose(); }
+}

@@ -1,0 +1,96 @@
+@page "/privacidade"
+@inject IOptions<AnunciosOptions> Anuncios
+
+<SeoMetadata Title="Política de privacidade da VALORDAFIPE"
+             Description="Saiba quais dados a VALORDAFIPE trata na conta opcional, quais cookies usa, como funcionam os anúncios do Google e como exercer seus direitos pela LGPD."
+             Path="/privacidade" Breadcrumbs="crumbs" />
+<Breadcrumbs Items="crumbs" />
+<div class="explore-heading"><h1>Política de <span>privacidade.</span></h1><p>Como tratamos dados pessoais, cookies e anúncios. Última atualização: @Responsavel.UltimaAtualizacao.</p></div>
+<article class="seo-copy about-copy legal-copy">
+    <h2>Quem é o responsável pelos dados?</h2>
+    <p>O controlador dos dados pessoais tratados na VALORDAFIPE, nos termos da Lei Geral de Proteção de Dados (Lei nº 13.709/2018, LGPD), é @Responsavel.Nome. Pedidos e dúvidas sobre privacidade, inclusive os dirigidos ao encarregado, devem ser enviados para @Responsavel.Email.</p>
+
+    <h2>Uso sem conta</h2>
+    <p>Consultar preços, históricos, rankings e comparações não exige cadastro. Sem conta, não pedimos nome, e-mail, CPF, telefone ou localização. As consultas de veículos não ficam associadas a nenhuma pessoa ou conta.</p>
+
+    <h2>Quais dados tratamos?</h2>
+    <h3>Conta opcional</h3>
+    <ul>
+        <li><strong>E-mail</strong>, que também serve como nome de usuário.</li>
+        <li><strong>Senha em forma de hash</strong>: guardamos apenas um resumo criptográfico irreversível, nunca a senha em si.</li>
+        <li><strong>Data de criação</strong> da conta.</li>
+        <li><strong>Fim do período sem anúncios</strong>, vazio no plano gratuito.</li>
+        <li><strong>Dados de segurança da conta</strong>: carimbo de segurança, contagem de tentativas de login malsucedidas e bloqueio temporário após tentativas seguidas.</li>
+    </ul>
+    <h3>Cookies</h3>
+    <ul>
+        <li><strong>.AspNetCore.Identity.Application</strong> (login): mantém você conectado, com conteúdo criptografado. Com &quot;Manter conectado neste aparelho&quot; marcado, e logo após o cadastro, dura até 14 dias e é renovado enquanto você usa o site; sem essa opção, é apagado quando o navegador é fechado. Só existe para quem entra em uma conta.</li>
+        <li><strong>.AspNetCore.Antiforgery</strong> (antifalsificação): protege formulários, como entrar, cadastrar e sair, contra envios forjados por outros sites. É apagado quando o navegador é fechado.</li>
+        <li>Cookies de publicidade do Google, descritos na seção <a href="/privacidade#anuncios">Anúncios do Google AdSense</a>.</li>
+    </ul>
+    <p>Os cookies de login e antifalsificação são necessários para a conta funcionar com segurança e não são usados para publicidade.</p>
+    <h3>Registros técnicos (logs)</h3>
+    <p>O servidor e a hospedagem geram registros de funcionamento que podem incluir endereço IP, data e hora do acesso, página solicitada, tipo de navegador e mensagens de erro.</p>
+    <h3>E-mails da conta</h3>
+    <p>Ao pedir a redefinição de senha, enviamos ao e-mail da conta um link válido por @ContasExtensions.ValidadeLinkSenha.TotalHours.ToString("0") horas, por meio de um provedor de envio de e-mails.</p>
+
+    <h2>Para que usamos os dados e com qual base legal?</h2>
+    <ul>
+        <li><strong>Criar e manter a conta, autenticar o acesso, recuperar a senha e aplicar o plano sem anúncios</strong>: execução de contrato (LGPD, art. 7º, V).</li>
+        <li><strong>Proteger contas e o site contra acessos indevidos, abuso e fraude, e diagnosticar erros</strong>: legítimo interesse (art. 7º, IX).</li>
+        <li><strong>Guardar registros de acesso quando a lei exigir</strong>, como no Marco Civil da Internet (Lei nº 12.965/2014, art. 15): cumprimento de obrigação legal (art. 7º, II).</li>
+        @* Revisar com advogado: o Guia de Cookies da ANPD (2022) recomenda consentimento para cookies de publicidade. *@
+        <li><strong>Exibir anúncios para manter as consultas gratuitas</strong>: legítimo interesse (art. 7º, IX), com a opção de desativar anúncios personalizados a qualquer momento.</li>
+    </ul>
+    <p>Não vendemos dados pessoais e não usamos o e-mail da conta para marketing.</p>
+
+    <h2 id="anuncios">Anúncios do Google AdSense</h2>
+    @* Os anúncios dependem de Anuncios:AdSenseClientId (App.razor); o texto acompanha a configuração. *@
+    @if (ExibeAnuncios)
+    {
+        <p>A VALORDAFIPE exibe anúncios do Google AdSense, um serviço do Google.</p>
+    }
+    else
+    {
+        <p>No momento, a VALORDAFIPE não exibe anúncios. Quando passar a exibir, eles serão fornecidos pelo Google AdSense, um serviço do Google, e valem as regras abaixo.</p>
+    }
+    <p>Fornecedores terceiros, incluindo o Google, usam cookies para exibir anúncios com base em visitas anteriores a este e a outros sites. Com esses cookies de publicidade, o Google e seus parceiros podem exibir anúncios com base nas visitas à VALORDAFIPE e a outros sites da internet. O Google trata esses dados como controlador, conforme as próprias políticas: veja <a href="https://policies.google.com/technologies/partner-sites" target="_blank" rel="noopener noreferrer">como o Google usa informações de sites que usam seus serviços</a> (policies.google.com/technologies/partner-sites).</p>
+    <p>Você pode desativar a publicidade personalizada nas <a href="https://adssettings.google.com" target="_blank" rel="noopener noreferrer">Configurações de anúncios do Google</a> (adssettings.google.com). O uso de cookies de outros fornecedores para publicidade personalizada pode ser desativado em <a href="https://www.aboutads.info" target="_blank" rel="noopener noreferrer">www.aboutads.info</a>. Também é possível bloquear ou apagar cookies nas configurações do navegador.</p>
+    <p>Quem está conectado a uma conta com o plano sem anúncios ativo não carrega o código do AdSense. Cookies gravados antes continuam no navegador até expirarem ou serem apagados.</p>
+
+    <h2>Outros serviços de terceiros</h2>
+    <p>As fontes tipográficas do site são carregadas do Google Fonts. Para entregá-las, os servidores do Google recebem o endereço IP e dados técnicos do navegador; não usamos esse serviço para identificar visitantes.</p>
+
+    <h2>Com quem compartilhamos dados?</h2>
+    <p>Somente com fornecedores necessários para operar o serviço, que tratam os dados conforme nossas instruções ou suas próprias políticas: hospedagem e banco de dados, envio de e-mails e, quando os anúncios estiverem ativos, o Google. Alguns desses fornecedores, como o Google, podem tratar dados fora do Brasil, com as garantias previstas na LGPD (art. 33). Dados também podem ser fornecidos a autoridades quando houver obrigação legal ou ordem judicial.</p>
+
+    <h2>Por quanto tempo guardamos os dados?</h2>
+    <ul>
+        <li><strong>Dados da conta</strong>: enquanto a conta existir. A exclusão apaga a conta do banco de dados na hora. Contas inativas não são excluídas automaticamente.</li>
+        <li><strong>Cookie de login</strong>: até sair da conta, fechar o navegador ou expirar, conforme descrito acima.</li>
+        <li><strong>Registros técnicos (logs)</strong>: @Responsavel.PrazoLogs, ou por mais tempo quando a lei ou uma ordem judicial exigir.</li>
+    </ul>
+
+    <h2>Como protegemos os dados?</h2>
+    <p>O site usa conexão criptografada (HTTPS), guarda senhas apenas como hash, bloqueia temporariamente o login após tentativas seguidas de senha incorreta e envia links de redefinição de senha com validade curta. Nenhum sistema é totalmente imune a falhas; em caso de incidente de segurança relevante, avisaremos os titulares afetados e a Autoridade Nacional de Proteção de Dados (ANPD), como determina a LGPD.</p>
+
+    <h2>Quais são os seus direitos?</h2>
+    <p>Pela LGPD (art. 18), você pode pedir confirmação de que tratamos seus dados, acesso, correção, anonimização, bloqueio ou eliminação de dados desnecessários, portabilidade, informação sobre com quem compartilhamos e revisão de decisões. Na prática:</p>
+    <ul>
+        <li><strong>Acesso</strong>: a página <a href="/conta">Minha conta</a> mostra o e-mail, a data de criação e o plano.</li>
+        <li><strong>Correção</strong>: a senha pode ser trocada em <a href="/conta/senha">Alterar senha</a>. Para corrigir o e-mail, escreva para @Responsavel.Email.</li>
+        <li><strong>Exclusão</strong>: apague a conta quando quiser em <a href="/conta/excluir">Excluir conta</a>.</li>
+        <li><strong>Demais pedidos</strong>: escreva para @Responsavel.Email a partir do e-mail da conta. Respondemos em até 15 dias.</li>
+    </ul>
+    <p>Se considerar que seu pedido não foi atendido, você pode apresentar reclamação à <a href="https://www.gov.br/anpd/pt-br" target="_blank" rel="noopener noreferrer">ANPD</a>.</p>
+
+    <h2>Mudanças nesta política</h2>
+    <p>Esta política pode mudar, por exemplo quando o plano sem anúncios for lançado e passar a envolver dados de pagamento. A versão em vigor fica sempre nesta página, com a data da última atualização no topo.</p>
+    <p><a href="/termos">Termos de uso</a> · <a href="/sobre">Fontes e metodologia</a></p>
+</article>
+
+@code {
+    private static readonly IReadOnlyList<SeoBreadcrumb> crumbs = [new("Início", "/"), new("Política de privacidade", "/privacidade")];
+
+    private bool ExibeAnuncios => !string.IsNullOrEmpty(Anuncios.Value.AdSenseClientId);
+}

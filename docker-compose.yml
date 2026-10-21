@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: fipedados-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fipe}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fipe}
+      POSTGRES_DB: ${POSTGRES_DB:-fipedados}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - fipedados-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      target: web
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ConnectionStrings__FipeDb: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-fipedados};Username=${POSTGRES_USER:-fipe};Password=${POSTGRES_PASSWORD:-fipe}"
+      Seo__SiteUrl: ${SEO_SITE_URL:-https://valordafipe.com.br}
+      Seo__AllowIndexing: ${SEO_ALLOW_INDEXING:-false}
+      Email__Host: ${EMAIL_HOST:-}
+      Email__Port: ${EMAIL_PORT:-587}
+      Email__Usuario: ${EMAIL_USUARIO:-}
+      Email__Senha: ${EMAIL_SENHA:-}
+      Email__Remetente: ${EMAIL_REMETENTE:-VALORDAFIPE <nao-responda@valordafipe.com.br>}
+      Anuncios__AdSenseClientId: ${ADSENSE_CLIENT_ID:-}
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  scraper:
+    build:
+      context: .
+      target: scraper
+    profiles: ["coleta"]
+    environment:
+      DOTNET_ENVIRONMENT: Production
+      ConnectionStrings__FipeDb: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-fipedados};Username=${POSTGRES_USER:-fipe};Password=${POSTGRES_PASSWORD:-fipe}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  fipedados-pgdata:

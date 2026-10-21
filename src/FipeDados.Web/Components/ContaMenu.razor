@@ -1,0 +1,35 @@
+@implements IDisposable
+@inject NavigationManager Nav
+
+<div class="account-menu">
+    <AuthorizeView>
+        <Authorized>
+            <a class="account-menu-link" href="@ContaUrls.MinhaConta"><Icon Name="user" Size="16" /><span>Minha conta</span></a>
+        </Authorized>
+        <NotAuthorized>
+            <a class="account-menu-link" href="@ContaUrls.ComRetorno(ContaUrls.Entrar, atual)">Entrar</a>
+            <a class="account-menu-cta" href="@ContaUrls.ComRetorno(ContaUrls.Cadastrar, atual)">Criar conta</a>
+        </NotAuthorized>
+    </AuthorizeView>
+</div>
+
+@code {
+    private string atual = "/";
+
+    // O layout não repassa parâmetros, então o menu acompanha a URL sozinho para o ReturnUrl ficar atual.
+    protected override void OnInitialized()
+    {
+        Atualizar();
+        Nav.LocationChanged += Mudou;
+    }
+
+    private void Atualizar() => atual = "/" + Nav.ToBaseRelativePath(Nav.Uri);
+
+    private void Mudou(object? sender, LocationChangedEventArgs e)
+    {
+        Atualizar();
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => Nav.LocationChanged -= Mudou;
+}

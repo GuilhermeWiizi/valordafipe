@@ -1,0 +1,212 @@
+@page "/tabela-fipe/{Tipo}/{MarcaSlug}/{ModeloSlug}/{AnoSlug}"
+@using System.Globalization
+@using FipeDados.Core.Fipe
+@inject IPrecoService Preco
+@inject PublicCatalog Catalog
+@inject NavigationManager Nav
+@inject ILogger<Veiculo> Logger
+@implements IDisposable
+
+<SeoMetadata Title="@SeoTitle" Description="@SeoDescription" Path="@(detalhe is null ? "" : CatalogPaths.Vehicle(detalhe))"
+             NoIndex="@(detalhe?.Resumo is not { ValorAtual: > 0 })" Breadcrumbs="crumbs" />
+<Breadcrumbs Items="crumbs" />
+
+@if (carregando)
+{
+    <div class="loading-box">
+        <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando…</span></div>
+        <p class="mt-3 mb-1">Carregando os preços disponíveis na base…</p>
+    </div>
+}
+else if (detalhe is null)
+{
+    <div class="alert alert-warning">Veículo não encontrado ou sem dados disponíveis.</div>
+    <a href="consultar-tabela-fipe" class="btn btn-outline-primary">← Voltar para a consulta</a>
+}
+else
+{
+    <a href="consultar-tabela-fipe" class="btn btn-link ps-0">← Consultar outro veículo</a>
+    <a href="@($"/comparar?a={Id}")" class="btn btn-outline-primary ms-2"><Icon Name="compare" Size="16" /> Comparar este veículo</a>
+    <h1 class="veiculo-titulo">Tabela Fipe: @detalhe.Marca @detalhe.Modelo @Ano</h1>
+    <p class="text-muted veiculo-sub">
+        @Ano · @detalhe.Tipo
+        @if (!string.IsNullOrEmpty(detalhe.CodigoFipe))
+        {
+            <span>· Código Fipe <strong>@detalhe.CodigoFipe</strong></span>
+        }
+    </p>
+
+    @if (atualizando)
+    {
+        <div class="history-update" role="status" aria-live="polite"><span class="small-spinner"></span><p>Consultando na Fipe os meses que faltam no histórico…</p></div>
+    }
+    @if (erro is not null) { <div class="notice" role="alert"><span>@erro</span><button class="text-button" @onclick="RepetirConsulta">Tentar novamente</button></div> }
+
+    @if (detalhe.Resumo is { } r)
+    {
+        <div class="cards-resumo">
+            <div class="card-resumo destaque">
+                <span class="rotulo">Último preço disponível</span>
+                <span class="valor">@Moeda(r.ValorAtual)</span>
+                <span class="sub">@r.MesReferencia</span>
+            </div>
+            <div class="card-resumo">
+                <span class="rotulo">Entre as últimas cotações</span>
+                <span class="valor @Cor(r.VariacaoMesPct)">@Pct(r.VariacaoMesPct)</span>
+                <span class="sub">@(r.VariacaoMesValor is { } mv ? Moeda(mv, sinal: true) : "—")</span>
+            </div>
+            <div class="card-resumo">
+                <span class="rotulo">Aproximadamente 12 meses</span>
+                <span class="valor @Cor(r.Variacao12mPct)">@Pct(r.Variacao12mPct)</span>
+            </div>
+            <div class="card-resumo">
+                <span class="rotulo">No período</span>
+                <span class="valor @Cor(r.VariacaoPeriodoPct)">@Pct(r.VariacaoPeriodoPct)</span>
+            </div>
+        </div>
+
+        <VehicleHistory Detail="detalhe" />
+
+        <div class="cards-stats">
+            <div class="stat">
+                <span class="rotulo">Mínimo</span>
+                <span class="valor">@Moeda(r.Minimo)</span>
+                <span class="sub">@r.DataMinimo.ToString("MM/yyyy")</span>
+            </div>
+            <div class="stat">
+                <span class="rotulo">Máximo</span>
+                <span class="valor">@Moeda(r.Maximo)</span>
+                <span class="sub">@r.DataMaximo.ToString("MM/yyyy")</span>
+            </div>
+            <div class="stat">
+                <span class="rotulo">Média</span>
+                <span class="valor">@Moeda(r.Media)</span>
+            </div>
+        </div>
+
+    }
+    else if (!atualizando)
+    {
+        <div class="alert alert-info">Ainda não há histórico de preço disponível para este veículo no período consultado.</div>
+    }
+    <RelatedVehicles Detail="detalhe" />
+    <section class="seo-copy"><h2>Sobre os preços de @detalhe.Marca @detalhe.Modelo</h2><p>Os valores correspondem a @Ano, conforme a referência de cada mês. O preço de compra ou venda pode variar com conservação, região e outras condições. A base pode ter cobertura parcial e os meses ausentes não são estimados.</p><p><a href="@CatalogPaths.Model(detalhe.Tipo, detalhe.MarcaSlug, detalhe.ModeloSlug)">Ver outros anos deste modelo</a> · <a href="@CatalogPaths.Brand(detalhe.Tipo, detalhe.MarcaSlug)">Ver modelos @detalhe.Marca</a> · <a href="/sobre">Fontes e metodologia</a></p></section>
+}
+
+@code {
+    [Parameter] public string Tipo { get; set; } = "";
+    [Parameter] public string MarcaSlug { get; set; } = "";
+    [Parameter] public string ModeloSlug { get; set; } = "";
+    [Parameter] public string AnoSlug { get; set; } = "";
+    [PersistentState] public DetalheVeiculo? CachedDetail { get; set; }
+
+    /// <summary>Veículo resolvido a partir dos slugs da rota.</summary>
+    private int Id { get; set; }
+
+    private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-BR");
+
+    private DetalheVeiculo? detalhe;
+    private bool carregando = true;
+    private bool atualizando;
+    private bool consultaPendente;
+    private string? rotaAtual;
+    private CancellationTokenSource? consulta;
+    private string? erro;
+    private IReadOnlyList<SeoBreadcrumb> crumbs = [];
+    private string Ano => detalhe is null ? "" : FipeParsing.RotuloAno(detalhe.AnoLabel);
+    private string SeoTitle => detalhe is null ? "Veículo | VALORDAFIPE"
+        : detalhe.Resumo is { } atual
+            ? $"Tabela Fipe {detalhe.Modelo} {Ano}: R$ {atual.ValorAtual.ToString("N2", Pt)} em {atual.MesReferencia} e histórico de preços"
+            : $"Tabela Fipe {detalhe.Modelo} {Ano}: histórico de preços";
+    private string SeoDescription => detalhe is null ? "Consulte os preços e o histórico de veículos na VALORDAFIPE."
+        : $"Tabela Fipe de {detalhe.Marca} {detalhe.Modelo} {Ano}. "
+          + (detalhe.Resumo is { } resumo ? $"Último preço disponível: {Moeda(resumo.ValorAtual)} ({resumo.MesReferencia}). Veja o histórico mensal e a variação." : "Veja a disponibilidade do histórico de preços na base.");
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var rota = $"/tabela-fipe/{Tipo}/{MarcaSlug}/{ModeloSlug}/{AnoSlug}".ToLowerInvariant();
+        if (rotaAtual == rota) return;
+        rotaAtual = rota;
+        consulta?.Cancel();
+        consulta?.Dispose();
+        consulta = new CancellationTokenSource();
+        var token = consulta.Token;
+        carregando = true;
+        atualizando = consultaPendente = false;
+        detalhe = null;
+        erro = null;
+        crumbs = [];
+        try
+        {
+            var id = CachedDetail is { } cache && CatalogPaths.Vehicle(cache) == rota ? cache.VeiculoId
+                : CatalogPaths.ParseType(Tipo) is { } tipo
+                    ? await Catalog.VehicleId(tipo, MarcaSlug.ToLowerInvariant(), ModeloSlug.ToLowerInvariant(), AnoSlug.ToLowerInvariant(), token) ?? 0
+                    : 0;
+            var resultado = id == 0 ? null : CachedDetail?.VeiculoId == id ? CachedDetail : await Preco.ObterDetalheEmCacheAsync(id, token);
+            token.ThrowIfCancellationRequested();
+            Id = id;
+            CachedDetail = detalhe = resultado;
+            carregando = false;
+            if (detalhe is null) { Nav.NotFound(); return; }
+            consultaPendente = detalhe.Serie.Count < 24;
+            crumbs = [new("Início", "/"), new("Marcas", "/catalogo"),
+                new(detalhe.Marca, CatalogPaths.Brand(detalhe.Tipo, detalhe.MarcaSlug)),
+                new(detalhe.Modelo, CatalogPaths.Model(detalhe.Tipo, detalhe.MarcaSlug, detalhe.ModeloSlug)),
+                new(Ano, CatalogPaths.Vehicle(detalhe))];
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Só consulta após a página ficar interativa; o prerender continua lendo o cache.
+        if (!consultaPendente || consulta is null) return;
+        consultaPendente = false;
+        var operacao = consulta;
+        var token = operacao.Token;
+        var id = Id;
+        atualizando = true;
+        erro = null;
+        StateHasChanged();
+        try
+        {
+            var coleta = await Preco.CompletarHistoricoAsync(id, 24, token, reconsultarLacunas: false);
+            var resultado = await Preco.ObterDetalheEmCacheAsync(id, token);
+            token.ThrowIfCancellationRequested();
+            if (resultado is not null) CachedDetail = detalhe = resultado;
+            if (coleta.Interrompida) erro = coleta.Falha is FipeLimiteException limite
+                ? $"A Fipe continua limitando as consultas. Os preços já obtidos foram mantidos. Tente novamente em {Math.Max(1, (int)Math.Ceiling((limite.RetryAfter ?? TimeSpan.FromMinutes(1)).TotalSeconds))} segundos."
+                : "A fonte de preços está temporariamente indisponível. Os meses já obtidos foram mantidos; tente novamente para completar o histórico.";
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Falha ao atualizar histórico do veículo {Id}.", id);
+            if (!token.IsCancellationRequested) erro = "Não foi possível consultar o histórico agora. Os dados já disponíveis foram mantidos. Tente novamente em instantes.";
+        }
+        finally
+        {
+            if (!token.IsCancellationRequested && ReferenceEquals(consulta, operacao))
+            {
+                atualizando = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private void RepetirConsulta() { erro = null; consultaPendente = true; }
+
+    public void Dispose() { consulta?.Cancel(); consulta?.Dispose(); }
+
+    private static string Moeda(decimal v, bool sinal = false)
+    {
+        var s = v.ToString("C2", Pt);
+        return sinal && v > 0 ? "+" + s : s;
+    }
+
+    private static string Pct(decimal? p)
+        => p is null ? "—" : $"{(p.Value >= 0 ? "+" : "")}{p.Value.ToString("0.0", Pt)}%";
+
+    private static string Cor(decimal? p)
+        => p is null ? "" : p.Value >= 0 ? "alta" : "baixa";
+}

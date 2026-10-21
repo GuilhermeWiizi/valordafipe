@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FipeDados.Core/FipeDados.Core.csproj" />
+    <Project Path="src/FipeDados.Infrastructure/FipeDados.Infrastructure.csproj" />
+    <Project Path="src/FipeDados.Scraper/FipeDados.Scraper.csproj" />
+    <Project Path="src/FipeDados.Web/FipeDados.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FipeDados.Tests/FipeDados.Tests.csproj" />
+  </Folder>
+</Solution>

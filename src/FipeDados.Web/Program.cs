@@ -1,0 +1,82 @@
+using ApexCharts;
+using FipeDados.Infrastructure;
+using FipeDados.Infrastructure.Data;
+using FipeDados.Web.Components;
+using FipeDados.Web.Contas;
+using FipeDados.Web.Seo;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Componentes Blazor (Server interativo).
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
+
+// Gráficos, infraestrutura (EF/Postgres + cliente Fipe + serviços + job de fundo) e contas opcionais.
+builder.Services.AddApexCharts();
+builder.Services.AddFipeInfrastructure(builder.Configuration);
+builder.Services.AddContas();
+builder.Services.AddOptions<SeoOptions>().BindConfiguration("Seo")
+    .Validate(o => SeoOptions.IsValidSiteUrl(o.SiteUrl), "Seo:SiteUrl deve ser uma origem HTTPS, sem caminho, query ou fragmento.")
+    .ValidateOnStart();
+builder.Services.AddSingleton<SeoSite>();
+builder.Services.AddScoped<PublicCatalog>();
+builder.Services.AddOutputCache(options => options.AddPolicy("SeoDiscovery", policy => policy.Expire(TimeSpan.FromMinutes(15))));
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(["application/xml", "image/svg+xml"]);
+});
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto);
+
+var app = builder.Build();
+app.UseForwardedHeaders();
+app.UseResponseCompression();
+
+// Aplica migrations no startup (conveniência em desenvolvimento).
+try
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<FipeDbContext>>();
+    await using var db = await factory.CreateDbContextAsync();
+    await db.Database.MigrateAsync();
+}
+catch (Exception ex)
+{
+    app.Logger.LogError(ex, "Falha ao aplicar migrations. O PostgreSQL está em execução? (docker compose up -d)");
+    throw;
+}
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Error", createScopeForErrors: true);
+    app.UseHsts();
+}
+
+app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseAntiforgery();
+app.Use(async (context, next) =>
+{
+    if (!app.Services.GetRequiredService<SeoSite>().IndexingEnabled)
+        context.Response.Headers["X-Robots-Tag"] = "noindex, nofollow";
+    await next();
+});
+app.UseOutputCache();
+
+app.MapStaticAssets();
+app.MapSeoEndpoints();
+app.MapContaEndpoints();
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode();
+
+app.Run();
+
+public partial class Program;

@@ -1,0 +1,82 @@
+@page "/consultar-tabela-fipe"
+@inject ICatalogService Catalog
+@inject NavigationManager Nav
+@inject ILogger<Explorar> Logger
+@inject PublicCatalog PublicCatalog
+<SeoMetadata Title="Consultar Tabela Fipe: preços de carros e motos | VALORDAFIPE"
+             Description="Consulte o preço de referência de carros e motos por marca, modelo e ano. Veja o histórico da Tabela Fipe e a variação dos valores disponíveis."
+             Path="/consultar-tabela-fipe" Breadcrumbs="crumbs" />
+<Breadcrumbs Items="crumbs" />
+<div class="page-eyebrow"><span class="eyebrow-line"></span> ENCONTRE SEU PRÓXIMO MOVIMENTO</div>
+<div class="explore-heading"><h1>Consulte a Tabela Fipe <span>de carros e motos</span></h1><p>Encontre o preço de referência de carros e motos por marca, modelo e ano.</p></div>
+<section class="vehicle-search-panel" aria-labelledby="search-heading">
+    <div class="search-panel-heading"><div><span class="panel-eyebrow">CONSULTA PERSONALIZADA</span><h2 id="search-heading">Qual veículo você quer consultar?</h2></div><span class="search-panel-badge"><Icon Name="shield" Size="15" /> Referência Fipe</span></div>
+    <div class="vehicle-type-label">Comece pelo tipo de veículo</div>
+    <div class="vehicle-type-picker" role="group" aria-label="Tipo de veículo">
+        <button class="@(tipo == TipoVeiculo.Carro ? "selected" : "")" aria-pressed="@(tipo == TipoVeiculo.Carro)" @onclick="() => TrocarTipo(TipoVeiculo.Carro)"><Icon Name="car" Size="25" /><span>Carros<small>Do primeiro carro ao próximo.</small></span><span class="type-radio">@if (tipo == TipoVeiculo.Carro) { <span></span> }</span></button>
+        <button class="@(tipo == TipoVeiculo.Moto ? "selected" : "")" aria-pressed="@(tipo == TipoVeiculo.Moto)" @onclick="() => TrocarTipo(TipoVeiculo.Moto)"><Icon Name="bike" Size="25" /><span>Motos<small>Liberdade em duas rodas.</small></span><span class="type-radio">@if (tipo == TipoVeiculo.Moto) { <span></span> }</span></button>
+    </div>
+    <div class="selection-fields">
+        <SearchSelect Label="Marca" Step="01" Items="marcas" Value="marcaId" ValueChanged="TrocarMarca" Loading="carregandoMarcas" Disabled="@(marcas.Count == 0)" Placeholder="Escolha a marca" Hint="Busque pelo nome da fabricante" />
+        <SearchSelect Label="Modelo" Step="02" Items="modelos" Value="modeloId" ValueChanged="TrocarModelo" Loading="carregandoModelos" Disabled="@(marcaId == 0 || modelos.Count == 0)" Placeholder="Escolha o modelo" Hint="@(marcaId == 0 ? "Selecione uma marca primeiro" : "Encontre o modelo e a versão")" />
+        <SearchSelect Label="Ano / combustível" Step="03" Items="anos" @bind-Value="veiculoId" Loading="carregandoAnos" Disabled="@(modeloId == 0 || anos.Count == 0)" Placeholder="Escolha o ano" Hint="@(modeloId == 0 ? "Selecione um modelo primeiro" : "Escolha o ano e a motorização")" />
+    </div>
+    @if (erro is not null) { <div class="notice error-notice" role="alert"><Icon Name="info" /><span>@erro</span><button class="text-button" @onclick="() => TrocarTipo(tipo)">Tentar novamente</button></div> }
+    <div class="search-panel-footer"><div class="selection-progress" aria-live="polite"><span class="progress-track"><span style="@($"width: {(veiculoId > 0 ? 100 : modeloId > 0 ? 66 : marcaId > 0 ? 33 : 0)}%")"></span></span><span>@(veiculoId > 0 ? "Tudo pronto para consultar" : "Selecione marca, modelo e ano")</span></div><button class="btn btn-primary" disabled="@(veiculoId == 0)" @onclick="VerVeiculo">Ver preços e variação <Icon Name="arrow" Size="18" /></button></div>
+</section>
+<div class="search-context"><Icon Name="info" Size="16" /><span>Ao abrir o veículo, os meses que faltam no histórico são consultados automaticamente na Fipe. Os preços já disponíveis são reutilizados.</span></div>
+<section class="explore-benefits" aria-label="O que você vai encontrar">
+    <div><span class="benefit-icon"><Icon Name="car" Size="22" /></span><h3>O valor de referência</h3><p>O preço da Tabela Fipe para a combinação exata de modelo e ano.</p></div>
+    <div><span class="benefit-icon"><Icon Name="chart" Size="22" /></span><h3>O movimento dos preços</h3><p>Até 24 meses de histórico para enxergar tendências com mais clareza.</p></div>
+    <div><span class="benefit-icon"><Icon Name="clock" Size="22" /></span><h3>Mais contexto para decidir</h3><p>Variações mensais, mínimas e máximas em uma visão completa.</p></div>
+</section>
+@code {
+    private static readonly IReadOnlyList<SeoBreadcrumb> crumbs = [new("Início", "/"), new("Consultar Tabela Fipe", "/consultar-tabela-fipe")];
+    private TipoVeiculo tipo = TipoVeiculo.Carro;
+    private int marcaId, modeloId, veiculoId, versao;
+    private IReadOnlyList<ItemSelecao> marcas = [], modelos = [], anos = [];
+    private bool carregandoMarcas, carregandoModelos, carregandoAnos;
+    private string? erro;
+    protected override async Task OnInitializedAsync()
+    {
+        marcas = await PublicCatalog.CachedBrands(tipo);
+        if (marcas.Count == 0) erro = "As marcas ainda não estão na base. Clique em tentar novamente para consultar a fonte.";
+    }
+    private async Task TrocarTipo(TipoVeiculo valor)
+    {
+        if (tipo == valor && (carregandoMarcas || (marcas.Count > 0 && erro is null))) return;
+        var requisicao = ++versao;
+        tipo = valor; marcaId = modeloId = veiculoId = 0;
+        marcas = modelos = anos = []; erro = null;
+        carregandoMarcas = true; carregandoModelos = carregandoAnos = false;
+        try { var resultado = await Catalog.ObterMarcasAsync(valor); if (requisicao == versao) { marcas = resultado; if (marcas.Count == 0) erro = "As marcas ainda não estão disponíveis. Tente novamente em instantes."; } }
+        catch (Exception ex) { Falhou(ex, requisicao, "as marcas"); }
+        finally { if (requisicao == versao) carregandoMarcas = false; }
+    }
+    private async Task TrocarMarca(int valor)
+    {
+        if (marcaId == valor && (carregandoModelos || (modelos.Count > 0 && erro is null))) return;
+        var requisicao = ++versao;
+        marcaId = valor; modeloId = veiculoId = 0; modelos = anos = []; erro = null;
+        carregandoModelos = true; carregandoAnos = false;
+        try { var resultado = await Catalog.ObterModelosAsync(valor); if (requisicao == versao) { modelos = resultado; if (modelos.Count == 0) erro = "Nenhum modelo disponível para esta marca no momento."; } }
+        catch (Exception ex) { Falhou(ex, requisicao, "os modelos"); }
+        finally { if (requisicao == versao) carregandoModelos = false; }
+    }
+    private async Task TrocarModelo(int valor)
+    {
+        if (modeloId == valor && (carregandoAnos || (anos.Count > 0 && erro is null))) return;
+        var requisicao = ++versao;
+        modeloId = valor; veiculoId = 0; anos = []; erro = null; carregandoAnos = true;
+        try { var resultado = await Catalog.ObterAnosAsync(valor); if (requisicao == versao) { anos = resultado; if (anos.Count == 0) erro = "Nenhum ano disponível para este modelo no momento."; } }
+        catch (Exception ex) { Falhou(ex, requisicao, "os anos"); }
+        finally { if (requisicao == versao) carregandoAnos = false; }
+    }
+    private void Falhou(Exception ex, int requisicao, string etapa) { Logger.LogError(ex, "Falha ao carregar {Etapa}.", etapa); if (requisicao == versao) erro = $"Não foi possível carregar {etapa}. Tente novamente."; }
+    private async Task VerVeiculo()
+    {
+        if (veiculoId == 0) return;
+        if (await PublicCatalog.VehiclePath(veiculoId) is { } caminho) Nav.NavigateTo(caminho);
+        else erro = "Não foi possível abrir este veículo. Tente novamente.";
+    }
+}

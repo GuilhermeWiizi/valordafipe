@@ -1,0 +1,34 @@
+<section class="account-page">
+    <div class="account-card">
+        <span class="account-icon"><Icon Name="@Icone" /></span>
+        <h1>@Titulo</h1>
+        <p class="account-lead">@Texto</p>
+        @if (Erros.Count > 0)
+        {
+            <div class="account-alert" role="alert">
+                @if (Erros.Count == 1)
+                {
+                    @Erros[0]
+                }
+                else
+                {
+                    <ul>@foreach (var erro in Erros) { <li>@erro</li> }</ul>
+                }
+            </div>
+        }
+        @if (Sucesso is not null)
+        {
+            <div class="account-alert account-success" role="status">@Sucesso</div>
+        }
+        @ChildContent
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string Titulo { get; set; } = "";
+    [Parameter, EditorRequired] public string Texto { get; set; } = "";
+    [Parameter] public string Icone { get; set; } = "user";
+    [Parameter] public IReadOnlyList<string> Erros { get; set; } = [];
+    [Parameter] public string? Sucesso { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

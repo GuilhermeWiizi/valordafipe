@@ -1,0 +1,61 @@
+@page "/conta/entrar"
+@inject SignInManager<Usuario> SignInManager
+@inject NavigationManager Nav
+
+<SeoMetadata Title="Entrar | VALORDAFIPE" Description="Acesse sua conta na VALORDAFIPE." Path="@ContaUrls.Entrar" NoIndex="true" />
+<ContaCartao Titulo="Entrar na sua conta" Texto="A conta é opcional: todas as consultas continuam abertas sem login." Erros="erros">
+    <EditForm Model="Input" method="post" OnValidSubmit="EntrarAsync" OnInvalidSubmit="Input.LimparSenhas" FormName="entrar" class="account-form">
+        <DataAnnotationsValidator />
+        <label for="email">E-mail</label>
+        <InputText id="email" type="email" @bind-Value="Input.Email" class="form-control" autocomplete="username" aria-required="true" />
+        <ValidationMessage For="() => Input.Email" />
+        <label for="senha">Senha</label>
+        <InputText id="senha" type="password" @bind-Value="Input.Senha" class="form-control" autocomplete="current-password" aria-required="true" />
+        <ValidationMessage For="() => Input.Senha" />
+        <label class="account-check"><InputCheckbox @bind-Value="Input.Lembrar" /> Manter conectado neste aparelho</label>
+        <button type="submit" class="btn btn-primary">Entrar</button>
+    </EditForm>
+    <div class="account-links"><a href="/conta/esqueci-senha">Esqueci minha senha</a><a href="@ContaUrls.ComRetorno(ContaUrls.Cadastrar, ReturnUrl ?? "/")">Criar conta</a></div>
+</ContaCartao>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+    [SupplyParameterFromForm] private Dados Input { get; set; } = default!;
+    private IReadOnlyList<string> erros = [];
+
+    protected override void OnInitialized()
+    {
+        Input ??= new();
+        if (HttpMethods.IsGet(HttpContext.Request.Method) && HttpContext.User.Identity?.IsAuthenticated == true)
+            Nav.NavigateTo(ContaUrls.Retorno(ReturnUrl, ContaUrls.MinhaConta));
+    }
+
+    private async Task EntrarAsync()
+    {
+        var resultado = await SignInManager.PasswordSignInAsync(Input.Email.Trim(), Input.Senha, Input.Lembrar, lockoutOnFailure: true);
+        if (resultado.Succeeded)
+        {
+            Nav.NavigateTo(ContaUrls.Retorno(ReturnUrl));
+            return;
+        }
+        Input.LimparSenhas();
+        erros = [resultado.IsLockedOut
+            ? "Muitas tentativas sem sucesso. A conta foi bloqueada por alguns minutos; tente de novo mais tarde ou redefina a senha."
+            : "E-mail ou senha inválidos."];
+    }
+
+    private sealed class Dados
+    {
+        [Required(ErrorMessage = "Informe o e-mail."), EmailAddress(ErrorMessage = "Informe um e-mail válido.")]
+        public string Email { get; set; } = "";
+
+        [Required(ErrorMessage = "Informe a senha."), DataType(DataType.Password)]
+        public string Senha { get; set; } = "";
+
+        public bool Lembrar { get; set; }
+
+        // O SSR devolveria o value dos campos de senha no HTML; nunca reexibir senha.
+        public void LimparSenhas() => Senha = "";
+    }
+}

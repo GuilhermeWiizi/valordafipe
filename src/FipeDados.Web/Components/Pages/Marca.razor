@@ -1,0 +1,43 @@
+@page "/tabela-fipe/{Tipo}/{MarcaSlug}"
+@inject PublicCatalog Catalog
+@inject NavigationManager Nav
+
+@if (data is { } d)
+{
+    <SeoMetadata Title="@($"Tabela Fipe {d.Brand.Name}: modelos e preços{PageSuffix} | VALORDAFIPE")"
+                 Description="@($"Consulte os modelos {d.Brand.Name} de {TypeName} com preços na base. Escolha modelo e ano para ver a Tabela Fipe e o histórico de valores.{PageSuffix}")"
+                 Path="@CanonicalPath" NoIndex="@(d.Count == 0)" Breadcrumbs="crumbs" />
+    <Breadcrumbs Items="crumbs" />
+    <div class="explore-heading"><h1>Tabela Fipe <span>@d.Brand.Name.</span></h1><p>@d.Count modelos de @TypeName com preços na base. Escolha um modelo para ver os anos e as versões disponíveis.</p></div>
+    <section class="catalog-section"><h2>Modelos @d.Brand.Name @PageSuffix</h2>
+        <ul class="catalog-links">
+            @foreach (var item in d.Models)
+            {
+                <li><a href="@item.Path">@item.Name <span aria-hidden="true">→</span></a></li>
+            }
+        </ul>
+        @if (d.Count == 0) { <p>Ainda não há modelos com preços publicados. <a href="/consultar-tabela-fipe">Consultar um veículo @d.Brand.Name</a>.</p> }
+    </section>
+    <CatalogPagination Page="@CurrentPage" Count="@d.Count" Path="@d.Brand.Path" />
+    <section class="seo-copy"><h2>Preços e histórico de @d.Brand.Name</h2><p>O valor da Tabela Fipe depende do modelo, ano e combustível. Ao abrir um veículo, você encontra os preços mensais disponíveis e os indicadores de variação calculados com esse histórico. A cobertura da VALORDAFIPE pode ser parcial.</p><p><a href="/catalogo">Ver outras marcas</a> · <a href="/sobre">Entender os dados e a metodologia</a></p></section>
+}
+
+@code {
+    [Parameter] public string Tipo { get; set; } = "";
+    [Parameter] public string MarcaSlug { get; set; } = "";
+    [SupplyParameterFromQuery(Name = "pagina")] public int? Pagina { get; set; }
+    private BrandPage? data;
+    private IReadOnlyList<SeoBreadcrumb> crumbs = [];
+    private int CurrentPage => Pagina ?? 1;
+    private string PageSuffix => CurrentPage > 1 ? $" — página {CurrentPage}" : "";
+    private string CanonicalPath => data is null ? "" : CatalogPaths.Paged(data.Brand.Path, CurrentPage);
+    private string TypeName => data?.Brand.Type == TipoVeiculo.Moto ? "motos" : "carros";
+    protected override async Task OnParametersSetAsync()
+    {
+        data = CatalogPaths.ParseType(Tipo) is { } type
+            ? await Catalog.Brand(type, MarcaSlug.ToLowerInvariant(), CurrentPage)
+            : null;
+        if (data is null) { Nav.NotFound(); return; }
+        crumbs = [new("Início", "/"), new("Marcas", "/catalogo"), new(data.Brand.Name, CanonicalPath)];
+    }
+}

@@ -1,0 +1,44 @@
+# Projeto independente do RotinaPsi. Execute com --project-name fipedados.
+services:
+  fipedados-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: fipe
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configure POSTGRES_PASSWORD em .env.vps}
+      POSTGRES_DB: fipedados
+      TZ: America/Sao_Paulo
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fipe -d fipedados"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      target: web
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: "8080"
+      TZ: America/Sao_Paulo
+      ConnectionStrings__FipeDb: "Host=fipedados-db;Port=5432;Database=fipedados;Username=fipe;Password=${POSTGRES_PASSWORD:?Configure POSTGRES_PASSWORD em .env.vps}"
+      Seo__SiteUrl: ${SEO_SITE_URL:-https://valordafipe.com.br}
+      Seo__AllowIndexing: ${SEO_ALLOW_INDEXING:-false}
+      Email__Host: ${EMAIL_HOST:-}
+      Email__Port: ${EMAIL_PORT:-587}
+      Email__Usuario: ${EMAIL_USUARIO:-}
+      Email__Senha: ${EMAIL_SENHA:-}
+      Email__Remetente: ${EMAIL_REMETENTE:-VALORDAFIPE <nao-responda@valordafipe.com.br>}
+      Anuncios__AdSenseClientId: ${ADSENSE_CLIENT_ID:-}
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8081}:8080"
+    depends_on:
+      fipedados-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

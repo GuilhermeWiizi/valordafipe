@@ -1,0 +1,61 @@
+@page "/conta/excluir"
+@attribute [Authorize]
+@inject UserManager<Usuario> UserManager
+@inject SignInManager<Usuario> SignInManager
+@inject UsuarioAtual UsuarioAtual
+@inject NavigationManager Nav
+
+<SeoMetadata Title="Excluir conta | VALORDAFIPE" Description="Exclua sua conta na VALORDAFIPE." Path="/conta/excluir" NoIndex="true" />
+<ContaCartao Titulo="Excluir conta" Texto="A exclusão é definitiva: apaga seu e-mail e os dados da conta. As consultas continuam disponíveis sem login." Icone="info" Erros="erros">
+    <EditForm Model="Input" method="post" OnValidSubmit="ExcluirAsync" OnInvalidSubmit="Input.LimparSenhas" FormName="excluir-conta" class="account-form">
+        <DataAnnotationsValidator />
+        <label for="senha">Confirme com sua senha</label>
+        <InputText id="senha" type="password" @bind-Value="Input.Senha" class="form-control" autocomplete="current-password" aria-required="true" />
+        <ValidationMessage For="() => Input.Senha" />
+        <button type="submit" class="btn btn-danger">Excluir minha conta</button>
+    </EditForm>
+    <div class="account-links"><a href="@ContaUrls.MinhaConta">Cancelar e voltar</a></div>
+</ContaCartao>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    [SupplyParameterFromForm] private Dados Input { get; set; } = default!;
+    private Usuario? usuario;
+    private IReadOnlyList<string> erros = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        usuario = await UsuarioAtual.ObterAsync(HttpContext);
+    }
+
+    private async Task ExcluirAsync()
+    {
+        if (usuario is null) return;
+        // Conta tentativas como o login, para a confirmação não servir de força bruta.
+        var senha = await SignInManager.CheckPasswordSignInAsync(usuario, Input.Senha, lockoutOnFailure: true);
+        Input.LimparSenhas();
+        if (!senha.Succeeded)
+        {
+            erros = [senha.IsLockedOut ? "Muitas tentativas sem sucesso. Tente de novo em alguns minutos." : "Senha incorreta."];
+            return;
+        }
+        var resultado = await UserManager.DeleteAsync(usuario);
+        if (!resultado.Succeeded)
+        {
+            erros = resultado.Errors.Select(e => e.Description).Distinct().ToList();
+            return;
+        }
+        await SignInManager.SignOutAsync();
+        Nav.NavigateTo("/");
+    }
+
+    private sealed class Dados
+    {
+        [Required(ErrorMessage = "Informe a senha."), DataType(DataType.Password)]
+        public string Senha { get; set; } = "";
+
+        // O SSR devolveria o value dos campos de senha no HTML; nunca reexibir senha.
+        public void LimparSenhas() => Senha = "";
+    }
+}

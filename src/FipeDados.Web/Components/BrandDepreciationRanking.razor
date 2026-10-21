@@ -1,0 +1,34 @@
+@using System.Globalization
+<section class="brand-ranking" aria-labelledby="brand-ranking-title" aria-busy="@Carregando">
+    <header class="brand-ranking-heading"><span class="brand-ranking-icon"><Icon Name="down" Size="24" /></span><div><span class="brand-ranking-eyebrow">UM OLHAR SOBRE AS MARCAS</span><h3 id="brand-ranking-title">Marcas com maior desvalorização média</h3><p>@(Referencia is { } mes ? $"{mes.AddMonths(-1).ToString("MMMM/yyyy", Pt)} → {mes.ToString("MMMM/yyyy", Pt)}" : "Comparação entre meses consecutivos")</p></div><span class="brand-ranking-filter">@(Tipo is null ? "Carros e motos" : Tipo == TipoVeiculo.Carro ? "Carros" : "Motos") <span>TOP 5</span></span></header>
+    @if (Carregando)
+    {
+        <div class="brand-ranking-loading" role="status" aria-label="Carregando ranking de marcas">@for (var i = 0; i < 3; i++) { <div class="skeleton"></div> }</div>
+    }
+    else if (Itens.Count == 0)
+    {
+        <div class="brand-ranking-empty"><Icon Name="info" Size="24" /><div><h4>@(SemComparacao ? "Ainda faltam preços para comparar as marcas" : "Nenhuma marca com queda média neste filtro")</h4><p>@(SemComparacao ? "O ranking aparece quando houver veículos com preço nos dois meses." : "Nos dados disponíveis, nenhuma marca apresentou média mensal negativa.")</p></div></div>
+    }
+    else
+    {
+        <div class="brand-ranking-labels" aria-hidden="true"><span>MARCA / AMOSTRA</span><span>DESVALORIZAÇÃO MÉDIA NO MÊS</span></div>
+        <ol class="brand-ranking-list">
+            @for (var i = 0; i < Itens.Count; i++)
+            {
+                var item = Itens[i];
+                <li @key="item.MarcaId"><span class="brand-rank-position">@((i + 1).ToString("00"))</span><span class="brand-rank-name"><strong>@item.Marca</strong><small>@(item.Tipo == TipoVeiculo.Carro ? "Carros" : "Motos") <span>·</span> @item.VeiculosComparados.ToString("N0", Pt) @(item.VeiculosComparados == 1 ? "veículo comparado" : "veículos comparados")</small></span><span class="brand-rank-track" aria-hidden="true"><span style="@($"width: {(Math.Abs(item.VariacaoMediaPct) / MaiorQueda * 100m).ToString("0.##", CultureInfo.InvariantCulture)}%")"></span></span><strong class="brand-rank-change"><Icon Name="down" Size="15" />@item.VariacaoMediaPct.ToString("0.00", Pt)%</strong></li>
+            }
+        </ol>
+    }
+    <p class="brand-ranking-method"><Icon Name="info" Size="15" /><span>Média simples da variação percentual de <strong>todos os veículos comparáveis de cada marca</strong>, incluindo altas e estabilidade. Só entram preços positivos nos dois meses. Cada ano e versão conta como um veículo. A amostra pode ser parcial; carros e motos da mesma marca são calculados separadamente.</span></p>
+</section>
+
+@code {
+    [Parameter] public IReadOnlyList<ItemRankingMarca> Itens { get; set; } = [];
+    [Parameter] public DateOnly? Referencia { get; set; }
+    [Parameter] public TipoVeiculo? Tipo { get; set; }
+    [Parameter] public bool Carregando { get; set; }
+    [Parameter] public bool SemComparacao { get; set; }
+    private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-BR");
+    private decimal MaiorQueda => Itens.Count == 0 ? 1 : Math.Max(.0001m, Itens.Max(i => Math.Abs(i.VariacaoMediaPct)));
+}

@@ -1,0 +1,25 @@
+@if (Items.Count > 1)
+{
+    <nav class="seo-breadcrumbs" aria-label="Caminho de navegação">
+        <ol>
+            @for (var index = 0; index < Items.Count; index++)
+            {
+                var item = Items[index];
+                <li>
+                    @if (index == Items.Count - 1)
+                    {
+                        <span aria-current="page">@item.Name</span>
+                    }
+                    else
+                    {
+                        <a href="@item.Path">@item.Name</a>
+                    }
+                </li>
+            }
+        </ol>
+    </nav>
+}
+
+@code {
+    [Parameter] public IReadOnlyList<SeoBreadcrumb> Items { get; set; } = [];
+}

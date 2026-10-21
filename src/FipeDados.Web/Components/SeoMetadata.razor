@@ -1,0 +1,32 @@
+@inject SeoSite Site
+
+<PageTitle>@Title</PageTitle>
+<HeadContent>
+    <meta name="description" content="@Description" />
+    <meta name="robots" content="@(NoIndex || !Site.IndexingEnabled ? "noindex, follow" : "index, follow, max-image-preview:large")" />
+    @if (!NoIndex)
+    {
+        <link rel="canonical" href="@Site.Url(Path)" />
+    }
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="VALORDAFIPE" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:title" content="@Title" />
+    <meta property="og:description" content="@Description" />
+    <meta property="og:url" content="@Site.Url(Path)" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="@Title" />
+    <meta name="twitter:description" content="@Description" />
+    @if (!NoIndex)
+    {
+        <script type="application/ld+json">@((MarkupString)Site.StructuredData(Title, Description, Path, Breadcrumbs))</script>
+    }
+</HeadContent>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public string Description { get; set; } = "";
+    [Parameter] public string Path { get; set; } = "/";
+    [Parameter] public bool NoIndex { get; set; }
+    [Parameter] public IReadOnlyList<SeoBreadcrumb> Breadcrumbs { get; set; } = [];
+}

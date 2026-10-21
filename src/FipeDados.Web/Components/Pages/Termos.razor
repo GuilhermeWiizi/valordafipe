@@ -1,0 +1,50 @@
+@page "/termos"
+
+<SeoMetadata Title="Termos de uso da VALORDAFIPE"
+             Description="Condições de uso da VALORDAFIPE: natureza de referência da Tabela Fipe, independência em relação à Fipe, conta opcional e plano sem anúncios."
+             Path="/termos" Breadcrumbs="crumbs" />
+<Breadcrumbs Items="crumbs" />
+<div class="explore-heading"><h1>Termos de <span>uso.</span></h1><p>As regras para usar a VALORDAFIPE. Última atualização: @Responsavel.UltimaAtualizacao.</p></div>
+<article class="seo-copy about-copy legal-copy">
+    <h2>Aceitação</h2>
+    <p>Estes termos valem para quem usa a VALORDAFIPE, mantida por @Responsavel.Nome. Ao usar o site, você concorda com eles. Se não concordar, não use o serviço.</p>
+
+    <h2>O serviço</h2>
+    <p>A VALORDAFIPE permite consultar gratuitamente preços de referência de carros e motos da Tabela Fipe, acompanhar o histórico mensal, comparar veículos e ver rankings de variação. As consultas não exigem cadastro.</p>
+
+    <h2>Os valores são referência</h2>
+    <p>A Tabela Fipe expressa preços médios de referência. Os valores exibidos não são avaliação, laudo, oferta de compra ou de venda. O preço efetivo de um veículo pode variar conforme conservação, região, quilometragem, equipamentos e condições de negociação.</p>
+    <p>Os dados são obtidos do <a href="https://veiculos.fipe.org.br/" target="_blank" rel="noopener noreferrer">site da Tabela Fipe</a> e armazenados em uma base própria. Podem existir atrasos, lacunas ou diferenças em relação à fonte; meses sem cotação ficam em branco e não são estimados. Antes de uma decisão importante, confira o valor na fonte oficial. Os critérios de cálculo estão em <a href="/sobre">Fontes e metodologia</a>.</p>
+
+    <h2>Independência em relação à Fipe</h2>
+    <p>A VALORDAFIPE é um projeto independente, sem vínculo com a Fundação Instituto de Pesquisas Econômicas (Fipe), que não revisa nem endossa este site. Os nomes Fipe e Tabela Fipe são citados apenas para identificar a fonte dos dados e pertencem aos seus titulares.</p>
+
+    <h2>Conta opcional</h2>
+    <p>A conta é gratuita e serve para o plano sem anúncios. Ao criá-la, você se compromete a informar um e-mail seu e válido, a manter a senha em sigilo e a nos avisar se suspeitar de uso indevido. Você pode excluir a conta a qualquer momento em <a href="/conta/excluir">Excluir conta</a>. Podemos suspender ou excluir contas usadas para fraude, abuso ou violação destes termos.</p>
+
+    <h2>Plano sem anúncios</h2>
+    <p>O plano sem anúncios ainda não está disponível. Quando for lançado, preço, forma de pagamento, duração, renovação e cancelamento serão informados antes da contratação, e estes termos e a política de privacidade serão atualizados. O plano remove os anúncios do site; as consultas, os históricos, os rankings e as comparações continuam gratuitos para todos.</p>
+
+    <h2>Anúncios</h2>
+    <p>O site pode exibir anúncios de terceiros, fornecidos pelo Google AdSense. A VALORDAFIPE não controla nem endossa os produtos e serviços anunciados. O tratamento de dados ligado aos anúncios está descrito na <a href="/privacidade#anuncios">Política de privacidade</a>.</p>
+
+    <h2>Uso permitido</h2>
+    <p>Não é permitido usar o site para atividades ilegais, tentar acessar áreas ou contas sem autorização, interferir no funcionamento do serviço ou fazer acessos automatizados em volume que o sobrecarregue.</p>
+
+    <h2>Disponibilidade e responsabilidade</h2>
+    <p>O serviço é oferecido como está, sem garantia de funcionamento contínuo ou livre de erros. Funcionalidades podem mudar ou ser encerradas. Na extensão permitida pela lei, a VALORDAFIPE não responde por decisões de compra, venda, seguro ou financiamento tomadas com base nos valores exibidos.</p>
+
+    <h2>Propriedade intelectual</h2>
+    <p>O layout, os textos, os gráficos e o código do site pertencem à VALORDAFIPE. Os preços de referência são produzidos pela Fipe, a fonte dos dados.</p>
+
+    <h2>Privacidade</h2>
+    <p>O tratamento de dados pessoais, os cookies e os seus direitos pela LGPD estão descritos na <a href="/privacidade">Política de privacidade</a>.</p>
+
+    <h2>Mudanças, lei aplicável e contato</h2>
+    <p>Estes termos podem mudar; a versão em vigor fica sempre nesta página, com a data da última atualização no topo. Eles são regidos pelas leis brasileiras, e eventuais disputas podem ser levadas ao foro do domicílio do usuário. Dúvidas: @Responsavel.Email.</p>
+    <p><a href="/privacidade">Política de privacidade</a> · <a href="/sobre">Fontes e metodologia</a></p>
+</article>
+
+@code {
+    private static readonly IReadOnlyList<SeoBreadcrumb> crumbs = [new("Início", "/"), new("Termos de uso", "/termos")];
+}

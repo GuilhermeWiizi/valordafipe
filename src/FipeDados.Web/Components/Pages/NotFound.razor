@@ -1,0 +1,14 @@
+@page "/not-found"
+@layout MainLayout
+
+<SeoMetadata Title="Página não encontrada | VALORDAFIPE" Description="A página solicitada não foi encontrada. Consulte o catálogo de carros e motos da VALORDAFIPE." NoIndex="true" Path="/not-found" />
+<div class="explore-heading"><h1>Página não encontrada.</h1><p>Esse endereço não corresponde a uma página disponível.</p></div>
+<p><a href="/catalogo">Navegar pelas marcas</a> · <a href="/consultar-tabela-fipe">Consultar um veículo</a> · <a href="/">Voltar ao início</a></p>
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+    protected override void OnInitialized()
+    {
+        if (HttpContext is { Response.HasStarted: false }) HttpContext.Response.StatusCode = 404;
+    }
+}

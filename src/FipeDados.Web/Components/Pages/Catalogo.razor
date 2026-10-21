@@ -1,0 +1,35 @@
+@page "/catalogo"
+@inject PublicCatalog Catalog
+
+<SeoMetadata Title="Tabela Fipe por marca: carros e motos | VALORDAFIPE"
+             Description="Navegue pelas marcas de carros e motos com preços disponíveis na VALORDAFIPE. Escolha modelo e ano para consultar a Tabela Fipe e o histórico de valores."
+             Path="/catalogo" NoIndex="@(brands.Count == 0)" Breadcrumbs="crumbs" />
+<Breadcrumbs Items="crumbs" />
+<div class="explore-heading"><h1>Tabela Fipe <span>por marca.</span></h1><p>Encontre carros e motos com preços disponíveis na nossa base.</p></div>
+@foreach (var type in new[] { TipoVeiculo.Carro, TipoVeiculo.Moto })
+{
+    var items = brands.Where(b => b.Type == type).ToList();
+    <section class="catalog-section" aria-label="@(type == TipoVeiculo.Carro ? "Marcas de carros" : "Marcas de motos")">
+        <h2>@(type == TipoVeiculo.Carro ? "Tabela Fipe de carros" : "Tabela Fipe de motos")</h2>
+        @if (items.Count == 0)
+        {
+            <p>Ainda não há preços publicados para este tipo. <a href="/consultar-tabela-fipe">Consultar um veículo</a>.</p>
+        }
+        else
+        {
+            <ul class="catalog-links">
+                @foreach (var brand in items)
+                {
+                    <li><a href="@brand.Path">@brand.Name <span aria-hidden="true">→</span></a></li>
+                }
+            </ul>
+        }
+    </section>
+}
+<section class="seo-copy"><h2>Como encontrar o valor de um veículo?</h2><p>Selecione a marca, depois o modelo e o ano com o combustível correto. Cada combinação tem seu próprio valor de referência. O histórico mostra os meses disponíveis na base; o preço de uma negociação pode variar conforme região, estado de conservação e outros fatores.</p><p>Quer buscar diretamente? Use a <a href="/consultar-tabela-fipe">consulta da Tabela Fipe</a> ou <a href="/comparar">compare a variação de dois veículos</a>.</p></section>
+
+@code {
+    private IReadOnlyList<PublicBrand> brands = [];
+    private static readonly IReadOnlyList<SeoBreadcrumb> crumbs = [new("Início", "/"), new("Marcas", "/catalogo")];
+    protected override async Task OnInitializedAsync() => brands = await Catalog.Brands();
+}

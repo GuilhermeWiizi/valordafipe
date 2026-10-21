@@ -1,0 +1,208 @@
+@page "/comparar"
+@using System.Globalization
+@using FipeDados.Core.Fipe
+@inject IPrecoService Preco
+@inject ILogger<Comparar> Logger
+@implements IDisposable
+
+<SeoMetadata Title="Comparar carros e motos: variação da Tabela Fipe | VALORDAFIPE"
+             Description="Compare preços e a valorização ou desvalorização de dois carros ou motos pela Tabela Fipe. Veja as diferenças em reais e percentuais nas mesmas datas."
+             Path="/comparar" Breadcrumbs="crumbs" />
+<Breadcrumbs Items="crumbs" />
+<div class="page-eyebrow"><span class="eyebrow-line"></span> DOIS VEÍCULOS. UMA VISÃO MAIS CLARA.</div>
+<div class="explore-heading compare-page-heading"><div><h1>Compare veículos <span>pela Tabela Fipe.</span></h1><p>Compare a valorização e a desvalorização de carros e motos ao longo do tempo.</p></div><span class="compare-heading-icon"><Icon Name="compare" Size="30" /></span></div>
+
+@if (detalheA is not null && detalheB is not null)
+{
+    <div class="compare-selection-bar"><span><Icon Name="check" Size="16" /> Dois veículos selecionados</span><button class="text-button" disabled="@carregando" @onclick="() => mostrarSeletores = !mostrarSeletores">@(mostrarSeletores ? "Recolher seleção" : "Alterar veículos") <Icon Name="chevron" Size="14" /></button></div>
+}
+<div hidden="@(!mostrarSeletores)">
+    <div class="compare-pickers">
+        <VehiclePicker Label="Veículo A" Letter="A" Description="Seu ponto de partida." Disabled="carregando" ValueChanged="SelecionarA" InitialSelection="presetA" />
+        <span class="compare-versus" aria-hidden="true"><Icon Name="compare" Size="20" /></span>
+        <VehiclePicker Label="Veículo B" Letter="B" Description="A alternativa para comparar." ColorClass="color-b" Disabled="carregando" ValueChanged="SelecionarB" InitialSelection="presetB" />
+    </div>
+    <div class="compare-action-bar"><span><Icon Name="clock" Size="15" /> Preços que faltarem serão consultados na Fipe automaticamente.</span><button class="btn btn-primary" disabled="@(carregando || veiculoA == 0 || veiculoB == 0 || veiculoA == veiculoB)" @onclick="Carregar"><Icon Name="compare" Size="18" /> Comparar veículos <Icon Name="arrow" Size="17" /></button></div>
+    @if (veiculoA != 0 && veiculoA == veiculoB) { <div class="notice" role="status"><Icon Name="info" Size="17" /> Escolha dois veículos diferentes. Você também pode comparar anos ou versões do mesmo modelo.</div> }
+</div>
+@if (carregando)
+{
+    <div class="compare-loading" role="status" aria-live="polite"><span class="small-spinner"></span><div><strong>@progresso</strong><p>Estamos preparando os históricos para comparar as mesmas datas.</p></div><button class="text-button" @onclick="Cancelar">Cancelar</button></div>
+}
+@if (erro is not null) { <div class="notice" role="alert"><Icon Name="info" /><span>@erro</span><button class="text-button" @onclick="Carregar" disabled="@carregando">Tentar novamente</button></div> }
+@if (!carregando && avisoColeta is not null) { <div class="notice" role="status"><Icon Name="info" /><span>@avisoColeta</span><button class="text-button" @onclick="Carregar">Tentar buscar novamente</button></div> }
+
+@if (!carregando && detalheA is { } a && detalheB is { } b)
+{
+    <section class="compare-results" aria-labelledby="comparison-title">
+        <div class="section-heading"><div><div class="page-eyebrow">VALORIZAÇÃO & DESVALORIZAÇÃO</div><h2 id="comparison-title">Como cada um se movimentou?</h2><p>Mesmas datas, mesma base de comparação.</p></div><div class="segmented-control compare-periods" role="group" aria-label="Período da comparação">
+            <button class="@(meses == 1 ? "selected" : "")" aria-pressed="@(meses == 1)" @onclick="() => MudarPeriodo(1)">No mês</button>
+            <button class="@(meses == 6 ? "selected" : "")" aria-pressed="@(meses == 6)" @onclick="() => MudarPeriodo(6)">6 meses</button>
+            <button class="@(meses == 12 ? "selected" : "")" aria-pressed="@(meses == 12)" @onclick="() => MudarPeriodo(12)">12 meses</button>
+            <button class="@(meses is null ? "selected" : "")" aria-pressed="@(meses is null)" @onclick="() => MudarPeriodo(null)">Histórico</button>
+        </div></div>
+        @if (comparacao is not { } c)
+        {
+            <div class="compare-no-history" role="status"><Icon Name="calendar" Size="30" /><h3>@(avisoColeta is null ? "A Fipe não retornou preços em comum suficientes." : "A consulta do histórico ficou incompleta.")</h3><p>@(avisoColeta is null ? "Consultamos os meses sem preço para os dois veículos. A Fipe ainda não disponibilizou valores em pelo menos dois meses deste período. Você pode escolher outra janela ou consultar novamente." : "Não foi possível concluir a busca dos preços que faltam. Tente novamente em instantes.")</p><button class="btn btn-outline-primary mt-3" @onclick="Carregar"><Icon Name="search" Size="16" /> Consultar novamente na Fipe</button></div>
+        }
+        else
+        {
+            <div class="compare-reference"><span><Icon Name="calendar" Size="15" /> @c.Inicio.ToString("MMMM/yyyy", Pt) <Icon Name="arrow" Size="14" /> @c.Fim.ToString("MMMM/yyyy", Pt)</span><span>Período efetivamente comparado</span></div>
+            @if (c.PeriodoParcial || c.ReferenciaDefasada)
+            {
+                <div class="notice compare-coverage" role="status"><Icon Name="info" Size="18" /><span>@(c.PeriodoParcial ? $"Histórico parcial: a comparação começa em {c.Inicio.ToString("MMMM/yyyy", Pt)}, primeira referência com preço para ambos dentro da janela escolhida. " : "")@(c.ReferenciaDefasada ? $"O último mês com preço para ambos é {c.Fim.ToString("MMMM/yyyy", Pt)}; a referência mais recente da base é {c.ReferenciaMaisRecente.ToString("MMMM/yyyy", Pt)}." : "")</span></div>
+            }
+            <div class="compare-summary-grid">
+                @ResumoVeiculo(a, c.A, "A", false)
+                @ResumoVeiculo(b, c.B, "B", true)
+            </div>
+            <div class="comparison-insight"><span class="insight-icon"><Icon Name="@(Math.Max(c.A.VariacaoPct, c.B.VariacaoPct) > 0 ? "up" : "compare")" Size="22" /></span><div><strong>@Destaque(c)</strong><p>@Contexto(c)</p></div><span class="insight-delta">@Math.Abs(c.DiferencaPontosPercentuais).ToString("0.00", Pt)<small>pontos percentuais</small></span></div>
+
+            <section class="compare-chart-card" aria-labelledby="chart-title">
+                <div class="compare-chart-heading"><div><h3 id="chart-title">@(percentual ? "Evolução percentual" : "Evolução dos preços")</h3><p>@(percentual ? "Os dois veículos partem de 0% na mesma data." : "Valores de referência em reais nas mesmas datas.")</p></div><div class="segmented-control" role="group" aria-label="Medida do gráfico"><button class="@(percentual ? "selected" : "")" aria-pressed="@percentual" @onclick="() => MudarMedida(true)">Variação (%)</button><button class="@(!percentual ? "selected" : "")" aria-pressed="@(!percentual)" @onclick="() => MudarMedida(false)">Preço (R$)</button></div></div>
+                <div class="compare-chart-legend"><span><i></i>A · @a.Marca @a.Modelo</span><span><i class="legend-b"></i>B · @b.Marca @b.Modelo</span></div>
+                <ApexChart @key="chaveGrafico" TItem="PontoComparacao" Options="opcoes" Height="340">
+                    <ApexPointSeries TItem="PontoComparacao" Items="c.Serie" Name="@($"A · {a.Marca} {a.Modelo} · {a.AnoLabel}")" XValue="@(p => p.Mes)" YValue="@(p => percentual ? p.PercentualA : p.PrecoA)" SeriesType="SeriesType.Line" />
+                    <ApexPointSeries TItem="PontoComparacao" Items="c.Serie" Name="@($"B · {b.Marca} {b.Modelo} · {b.AnoLabel}")" XValue="@(p => p.Mes)" YValue="@(p => percentual ? p.PercentualB : p.PrecoB)" SeriesType="SeriesType.Line" />
+                </ApexChart>
+                <p class="compare-chart-note"><Icon Name="info" Size="14" /> Meses sem preço ficam sem ponto no gráfico. Nenhum valor é estimado.</p>
+            </section>
+
+            <section class="compare-table-card" aria-labelledby="table-title"><div class="compare-table-heading"><h3 id="table-title">Os números, lado a lado</h3><p>Os percentuais mostram a mudança do valor, independentemente do preço de cada veículo.</p></div><div class="compare-table-scroll"><table class="table compare-table"><thead><tr><th scope="col">INDICADOR</th><th scope="col"><span class="table-vehicle-label">A · @a.Marca @a.Modelo</span><small>@a.AnoLabel</small></th><th scope="col"><span class="table-vehicle-label color-b-text">B · @b.Marca @b.Modelo</span><small>@b.AnoLabel</small></th></tr></thead><tbody>
+                <tr><th scope="row">Preço no início <small>@c.Inicio.ToString("MM/yyyy")</small></th><td>@Moeda(c.A.PrecoInicial)</td><td>@Moeda(c.B.PrecoInicial)</td></tr>
+                <tr><th scope="row">Preço no fim <small>@c.Fim.ToString("MM/yyyy")</small></th><td>@Moeda(c.A.PrecoFinal)</td><td>@Moeda(c.B.PrecoFinal)</td></tr>
+                <tr class="compare-featured-row"><th scope="row">Variação no período</th><td class="@Cor(c.A.VariacaoPct)">@Pct(c.A.VariacaoPct)</td><td class="@Cor(c.B.VariacaoPct)">@Pct(c.B.VariacaoPct)</td></tr>
+                <tr><th scope="row">Diferença em reais</th><td class="@Cor(c.A.VariacaoValor)">@Moeda(c.A.VariacaoValor, true)</td><td class="@Cor(c.B.VariacaoValor)">@Moeda(c.B.VariacaoValor, true)</td></tr>
+                <tr><th scope="row">Variação no último mês <small>@c.Fim.AddMonths(-1).ToString("MM/yyyy") → @c.Fim.ToString("MM/yyyy")</small></th><td class="@Cor(c.A.VariacaoMesPct)">@Pct(c.A.VariacaoMesPct)</td><td class="@Cor(c.B.VariacaoMesPct)">@Pct(c.B.VariacaoMesPct)</td></tr>
+                <tr><th scope="row">Variação em 12 meses <small>@c.Fim.AddMonths(-12).ToString("MM/yyyy") → @c.Fim.ToString("MM/yyyy")</small></th><td class="@Cor(c.A.Variacao12MesesPct)">@Pct(c.A.Variacao12MesesPct)</td><td class="@Cor(c.B.Variacao12MesesPct)">@Pct(c.B.Variacao12MesesPct)</td></tr>
+                <tr><th scope="row">Meses com preço no gráfico</th><td>@c.Serie.Count(p => p.PrecoA is not null) de @c.Serie.Count</td><td>@c.Serie.Count(p => p.PrecoB is not null) de @c.Serie.Count</td></tr>
+                <tr><th scope="row">Histórico individual</th><td><a href="@CatalogPaths.Vehicle(a)">Ver veículo A <Icon Name="arrow" Size="14" /></a></td><td><a href="@CatalogPaths.Vehicle(b)">Ver veículo B <Icon Name="arrow" Size="14" /></a></td></tr>
+            </tbody></table></div><p class="compare-table-note">— indica que falta preço em uma das datas necessárias para esse indicador. Valores da Tabela Fipe são referências de mercado.</p></section>
+        }
+    </section>
+}
+else if (!carregando && erro is null)
+{
+    <section class="compare-intro"><span class="compare-intro-icon"><Icon Name="chart" Size="27" /></span><div><h3>Quem preservou melhor o valor?</h3><p>Escolha os veículos acima para descobrir. Compare curvas, ganhos e perdas sem perder a perspectiva do período.</p></div><span class="compare-intro-tag">Até 24 referências mensais</span></section>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "a")] public int? Primeiro { get; set; }
+    [SupplyParameterFromQuery(Name = "b")] public int? Segundo { get; set; }
+    private static readonly IReadOnlyList<SeoBreadcrumb> crumbs = [new("Início", "/"), new("Comparar veículos", "/comparar")];
+    private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-BR");
+    private int veiculoA, veiculoB;
+    private int? meses = 12;
+    private bool carregando, percentual = true, mostrarSeletores = true;
+    private string? erro;
+    private string? avisoColeta;
+    private string progresso = "";
+    private DetalheVeiculo? detalheA, detalheB;
+    private DetalheVeiculo? presetA, presetB;
+    private string? queryAnterior;
+    private ComparacaoVeiculos? comparacao;
+    private CancellationTokenSource? consulta;
+    private readonly CancellationTokenSource lifetime = new();
+    private int chaveGrafico;
+    private ApexChartOptions<PontoComparacao> opcoes = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var query = $"{Primeiro}:{Segundo}";
+        if (queryAnterior == query) return;
+        queryAnterior = query;
+        consulta?.Cancel();
+        LimparResultado();
+        presetA = Primeiro is > 0 ? await Preco.ObterDetalheEmCacheAsync(Primeiro.Value, lifetime.Token) : null;
+        presetB = Segundo is > 0 ? await Preco.ObterDetalheEmCacheAsync(Segundo.Value, lifetime.Token) : null;
+        veiculoA = presetA?.VeiculoId ?? 0; veiculoB = presetB?.VeiculoId ?? 0;
+        if ((Primeiro is not null && presetA is null) || (Segundo is not null && presetB is null))
+            erro = "Um veículo do atalho não foi encontrado. Escolha outro abaixo.";
+    }
+
+    private void SelecionarA(int id) { veiculoA = id; LimparResultado(); }
+    private void SelecionarB(int id) { veiculoB = id; LimparResultado(); }
+    private void LimparResultado() { detalheA = detalheB = null; comparacao = null; erro = avisoColeta = null; mostrarSeletores = true; }
+    private async Task Carregar()
+    {
+        if (carregando || veiculoA == 0 || veiculoB == 0 || veiculoA == veiculoB) return;
+        consulta?.Dispose();
+        consulta = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        var token = consulta.Token;
+        carregando = true; erro = avisoColeta = null;
+        try
+        {
+            var referencias = meses is { } periodo ? periodo + 1 : 24;
+            progresso = "Buscando na Fipe os preços que faltam para o veículo A…";
+            var coletaA = await Preco.CompletarHistoricoAsync(veiculoA, referencias, token);
+            var coletaB = new ResultadoColeta(0, null);
+            if (!coletaA.Interrompida)
+            {
+                progresso = "Buscando na Fipe os preços que faltam para o veículo B…";
+                if (!lifetime.IsCancellationRequested) StateHasChanged();
+                coletaB = await Preco.CompletarHistoricoAsync(veiculoB, referencias, token);
+            }
+            var falha = coletaA.Falha ?? coletaB.Falha;
+            if (falha is not null) avisoColeta = falha is FipeLimiteException
+                ? "A Fipe limitou temporariamente as consultas. Os preços já obtidos foram mantidos; tente novamente em instantes."
+                : "A busca na Fipe foi interrompida. Os preços já obtidos foram mantidos; alguns meses podem estar faltando.";
+            progresso = "Atualizando a comparação com os preços disponíveis…";
+            if (!lifetime.IsCancellationRequested) StateHasChanged();
+            var a = await Preco.ObterDetalheEmCacheAsync(veiculoA, token);
+            var b = await Preco.ObterDetalheEmCacheAsync(veiculoB, token);
+            token.ThrowIfCancellationRequested();
+            if (a is null || b is null) { erro = "Um dos veículos não tem dados disponíveis. Tente novamente ou escolha outro veículo."; return; }
+            detalheA = a; detalheB = b; mostrarSeletores = false;
+            AtualizarComparacao();
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception ex) { Logger.LogWarning(ex, "Falha ao comparar veículos {A} e {B}.", veiculoA, veiculoB); erro = "Não foi possível preparar a comparação. Tente novamente em instantes."; }
+        finally { carregando = false; }
+    }
+    private void Cancelar() => consulta?.Cancel();
+    private async Task MudarPeriodo(int? valor)
+    {
+        if (carregando || meses == valor) return;
+        meses = valor;
+        await Carregar();
+    }
+    private void MudarMedida(bool valor) { percentual = valor; AtualizarComparacao(); }
+    private void AtualizarComparacao()
+    {
+        if (detalheA is null || detalheB is null) return;
+        comparacao = ComparacaoCalculator.Calcular(detalheA.Serie, detalheB.Serie, meses);
+        chaveGrafico++;
+        opcoes = new()
+        {
+            Chart = new Chart { Toolbar = new Toolbar { Show = false } },
+            Colors = ["#197653", "#b67b34"],
+            Stroke = new Stroke { Curve = Curve.Straight, Width = 3 },
+            Markers = new Markers { Size = 3 },
+            DataLabels = new DataLabels { Enabled = false },
+            Legend = new Legend { Show = false },
+            Yaxis = [new YAxis { Labels = new YAxisLabels { Formatter = percentual
+                ? "function(v) { return v == null ? '—' : v.toLocaleString('pt-BR', {maximumFractionDigits: 1}) + '%'; }"
+                : "function(v) { return v == null ? '—' : 'R$ ' + (v / 1000).toLocaleString('pt-BR', {maximumFractionDigits: 1}) + ' mil'; }" } }],
+            Tooltip = new Tooltip { Y = new TooltipY { Formatter = percentual
+                ? "function(v) { return v == null ? 'Sem preço' : v.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '%'; }"
+                : "function(v) { return v == null ? 'Sem preço' : v.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'}); }" } }
+        };
+    }
+    private RenderFragment ResumoVeiculo(DetalheVeiculo v, ResumoComparado r, string letra, bool segundo) => @<article class="compare-vehicle-summary @(segundo ? "summary-b" : "")">
+        <div class="compare-summary-label"><span class="compare-letter @(segundo ? "color-b" : "")">@letra</span><span>@v.Tipo · @v.AnoLabel</span></div>
+        <h3>@v.Marca @v.Modelo</h3><div class="compare-summary-values"><div><small>PREÇO NO FIM DO PERÍODO</small><strong>@Moeda(r.PrecoFinal)</strong></div><div class="compare-summary-change"><span class="compare-change @Cor(r.VariacaoPct)"><Icon Name="@(r.VariacaoPct >= 0 ? "up" : "down")" Size="19" />@Pct(r.VariacaoPct)</span><small class="@Cor(r.VariacaoValor)">@Moeda(r.VariacaoValor, true)</small></div></div>
+    </article>;
+    private static string Destaque(ComparacaoVeiculos c)
+    {
+        if (c.DiferencaPontosPercentuais == 0) return "Mesmo desempenho percentual no período";
+        var melhor = c.DiferencaPontosPercentuais > 0 ? "A" : "B";
+        return Math.Max(c.A.VariacaoPct, c.B.VariacaoPct) > 0 ? $"Veículo {melhor}: maior valorização no período" : $"Veículo {melhor}: preservou melhor o valor no período";
+    }
+    private static string Contexto(ComparacaoVeiculos c) => c.DiferencaPontosPercentuais == 0
+        ? "Os dois veículos tiveram a mesma variação entre as datas comparadas."
+        : $"Diferença entre as variações de {c.Inicio.ToString("MM/yyyy")} a {c.Fim.ToString("MM/yyyy")}. O resultado considera a mudança percentual, não o preço absoluto.";
+    private static string Pct(decimal? valor) => valor?.ToString("+0.00;-0.00;0.00", Pt) + (valor is null ? "—" : "%");
+    private static string Moeda(decimal valor, bool sinal = false) => (sinal && valor > 0 ? "+" : "") + valor.ToString("C2", Pt);
+    private static string Cor(decimal? valor) => valor > 0 ? "compare-positive" : valor < 0 ? "compare-negative" : "";
+    public void Dispose() { lifetime.Cancel(); consulta?.Dispose(); lifetime.Dispose(); }
+}
