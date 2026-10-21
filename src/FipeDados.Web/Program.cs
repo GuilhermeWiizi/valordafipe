@@ -1,3 +1,4 @@
+using System.Net;
 using ApexCharts;
 using FipeDados.Infrastructure;
 using FipeDados.Infrastructure.Data;
@@ -32,7 +33,13 @@ builder.Services.AddResponseCompression(options =>
     options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(["application/xml", "image/svg+xml"]);
 });
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto);
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // O Nginx no host chega pelo gateway da rede Docker, nao por loopback no container.
+    var proxies = builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? [];
+    foreach (var proxy in proxies.Where(p => !string.IsNullOrWhiteSpace(p)))
+        options.KnownProxies.Add(IPAddress.Parse(proxy));
+});
 
 var app = builder.Build();
 app.UseForwardedHeaders();

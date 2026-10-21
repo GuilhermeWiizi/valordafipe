@@ -101,13 +101,13 @@ backups do PostgreSQL. A porta publicada do banco fica limitada a `127.0.0.1`.
 O fluxo é o mesmo do script do RotinaPsi: SSH → `git pull origin main` → build →
 atualização dos contêineres. O host padrão é `root@srv1684584.hstgr.cloud` e a pasta
 remota é `/srv/FipeDados`. O FIPE usa um projeto Compose próprio, banco próprio sem
-porta publicada e a porta **127.0.0.1:8081** para o site, pois o RotinaPsi usa 8080.
+porta publicada e a porta **127.0.0.1:8082** para o site (RotinaPsi usa 8080 e Evolution usa 8081).
 
 ### Preparação inicial (uma vez)
 
-Publique primeiro este projeto em um repositório Git acessível pela VPS. A pasta local
-atual não contém `.git`; o fluxo de atualização exige que o código esteja commitado e
-enviado ao repositório, inclusive `Dockerfile`, scripts e arquivos Compose.
+O repositório do projeto é [GuilhermeWiizi/valordafipe](https://github.com/GuilhermeWiizi/valordafipe),
+na branch `main`. O fluxo de atualização exige que o código esteja commitado e enviado
+a essa branch, inclusive `Dockerfile`, scripts e arquivos Compose.
 
 No Windows, conecte-se à VPS:
 
@@ -115,10 +115,10 @@ No Windows, conecte-se à VPS:
 ssh root@srv1684584.hstgr.cloud
 ```
 
-Na VPS, substitua `URL_DO_REPOSITORIO` pela URL real:
+Na VPS, faça a preparação inicial:
 
 ```bash
-git clone URL_DO_REPOSITORIO /srv/FipeDados
+git clone https://github.com/GuilhermeWiizi/valordafipe.git /srv/FipeDados
 cd /srv/FipeDados
 cp .env.vps.example .env.vps
 chmod 600 .env.vps
@@ -129,7 +129,7 @@ nano .env.vps
 Coloque a senha gerada em `POSTGRES_PASSWORD` e ajuste `SEO_SITE_URL` para o domínio
 definitivo. Mantenha `SEO_ALLOW_INDEXING=false` até concluir domínio e HTTPS. O servidor
 precisa de Git, Bash, curl e Docker com Compose que suporte `up --wait --wait-timeout`.
-Confirme que a porta está livre com `ss -lntp 'sport = :8081'`; se necessário, escolha
+Confirme que a porta está livre com `ss -lntp 'sport = :8082'`; se necessário, escolha
 outra em `WEB_PORT`.
 
 ### Publicação e próximas atualizações
@@ -156,13 +156,13 @@ Para conferir diretamente na VPS:
 cd /srv/FipeDados
 docker compose -p fipedados --env-file .env.vps -f docker-compose.vps.yml ps
 docker compose -p fipedados --env-file .env.vps -f docker-compose.vps.yml logs -f web
-curl -I http://127.0.0.1:8081/robots.txt
+curl -I http://127.0.0.1:8082/robots.txt
 ```
 
 ### Domínio e HTTPS
 
 Se o proxy existente roda diretamente na VPS, configure o domínio do FIPE para o destino
-`http://127.0.0.1:8081`, com WebSockets habilitados. Se ele roda em outro contêiner, o
+`http://127.0.0.1:8082`, com WebSockets habilitados. Se ele roda em outro contêiner, o
 endereço `127.0.0.1` refere-se ao próprio proxy: nesse caso, conecte o serviço `web` à
 rede externa do proxy, com um alias exclusivo (por exemplo, `fipedados-web`), e use
 `http://fipedados-web:8080` como destino. Essa conexão depende da configuração do proxy
@@ -171,6 +171,54 @@ no ASP.NET Core, conforme a seção **SEO e publicação**, antes de habilitar o
 
 O banco criado na VPS começa vazio; os dados do PostgreSQL portátil precisam ser
 exportados e importados separadamente, se você quiser preservar o histórico já coletado.
+
+### Nginx no host para `valordafipe.com.br`
+
+Na VPS atual, o FIPE usa a porta **8082** (8080 é do RotinaPsi e 8081 é do Evolution).
+Mantenha `WEB_PORT=8082` no `.env.vps`. O modelo de configuração está em
+`deploy/nginx/valordafipe.conf` e usa essa mesma porta, com suporte a WebSockets.
+
+O Nginx chega ao contêiner pelo gateway da rede Docker. Descubra esse endereço:
+
+```bash
+docker inspect fipedados-web-1 --format '{{range .NetworkSettings.Networks}}{{.Gateway}}{{end}}'
+```
+
+Defina `TRUSTED_PROXY_IP` no `.env.vps` com o IP exibido e faça um novo deploy. A aplicação
+aceita `X-Forwarded-For` e `X-Forwarded-Proto` desse IP, preservando a validação de origem.
+Isso permite reconhecer o HTTPS terminado pelo Nginx, conforme a
+[documentação do ASP.NET Core](https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/proxy-load-balancer?view=aspnetcore-10.0).
+Se a rede Docker for recriada com outro gateway, atualize essa variável e recrie o serviço.
+
+Crie o registro DNS `A` de `valordafipe.com.br` apontando para o IPv4 público da VPS.
+Se houver registro `AAAA`, ele também deve apontar para a VPS com conectividade IPv6.
+Depois de enviar as alterações do projeto ao Git e executar o deploy, instale o site:
+
+```bash
+cd /srv/FipeDados
+cp deploy/nginx/valordafipe.conf /etc/nginx/sites-available/valordafipe.com.br
+ln -s /etc/nginx/sites-available/valordafipe.com.br /etc/nginx/sites-enabled/valordafipe.com.br
+nginx -t && systemctl reload nginx
+curl -I -H 'Host: valordafipe.com.br' http://127.0.0.1/robots.txt
+```
+
+Instale o arquivo e crie o link somente na configuração inicial. Após o Certbot configurar
+HTTPS, edite o arquivo já instalado para ajustes; copiar novamente o modelo HTTP por cima
+remove os blocos de certificado adicionados por ele. Os deploys do aplicativo não alteram
+os arquivos em `/etc/nginx`.
+
+Com o DNS propagado e HTTP acessível, use o Certbot já instalado na VPS:
+
+```bash
+certbot --nginx -d valordafipe.com.br --redirect
+curl -I https://valordafipe.com.br/robots.txt
+certbot renew --dry-run
+```
+
+O plugin Nginx emite o certificado e configura HTTPS, conforme o
+[guia oficial do Certbot](https://certbot.eff.org/instructions?os=pip&tab=standard&ws=nginx).
+Se `certbot` não estiver instalado, siga o instalador apropriado ao sistema da VPS.
+Depois de validar HTTPS, defina `SEO_ALLOW_INDEXING=true` no `.env.vps` e execute o deploy.
 
 ## Rodar o site com o SDK local
 
