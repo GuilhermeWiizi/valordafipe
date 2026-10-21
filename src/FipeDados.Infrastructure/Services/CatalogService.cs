@@ -92,6 +92,24 @@ public class CatalogService : ICatalogService
             return await LerModelosAsync(db, marcaId, ct);
     }
 
+    public async Task<ResultadoPesquisaModelos> PesquisarModelosAsync(TipoVeiculo tipo, string termo, int? marcaId = null, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        var busca = Slugs.Gerar(termo.Trim());
+        if ((busca.Length == 0 && (marcaId is null || marcaId <= 0 || !string.IsNullOrWhiteSpace(termo)))
+            || (busca.Length > 0 && busca.Length < 2))
+            return new([]);
+
+        await using var db = await _dbFactory.CreateDbContextAsync(ct);
+        var consulta = db.Modelos.AsNoTracking().Where(m => m.Marca.Tipo == tipo);
+        if (marcaId is > 0) consulta = consulta.Where(m => m.MarcaId == marcaId);
+        if (busca.Length > 0) consulta = consulta.Where(m => m.Slug.Contains(busca));
+        var itens = await consulta.OrderBy(m => m.Nome).ThenBy(m => m.Id)
+            .Select(m => new ModeloEncontrado(m.Id, m.Nome, m.MarcaId, m.Marca.Nome))
+            .Take(ResultadoPesquisaModelos.Limite + 1).ToListAsync(ct);
+        return new(itens.Take(ResultadoPesquisaModelos.Limite).ToArray(), itens.Count > ResultadoPesquisaModelos.Limite);
+    }
+
     public async Task<IReadOnlyList<ItemSelecao>> ObterAnosAsync(int modeloId, CancellationToken ct = default)
     {
         await using (var db = await _dbFactory.CreateDbContextAsync(ct))

@@ -1,10 +1,11 @@
 @using System.Globalization
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject ILogger<SearchSelect> Logger
 <div class="search-select @(aberto ? "is-open" : "") @(Value > 0 ? "has-value" : "") @(Disabled || Loading ? "is-disabled" : "")" @onkeydown="Tecla">
     <label id="@(id + "-label")" for="@id" class="field-label"><span class="field-step">@Step</span>@Label @if (Value > 0) { <Icon Name="check" Class="field-check" Size="14" /> }</label>
-    <button @ref="gatilho" id="@id" type="button" class="select-trigger" aria-labelledby="@(id + "-label " + id + "-value")" aria-haspopup="listbox" aria-expanded="@aberto" aria-controls="@(id + "-options")" disabled="@(Disabled || Loading)" @onclick="Alternar">
-        <span id="@(id + "-value")">@(Loading ? "Carregando…" : Items.FirstOrDefault(x => x.Id == Value)?.Nome ?? Placeholder)</span>
+    <button @ref="gatilho" id="@id" type="button" class="select-trigger" aria-labelledby="@(id + "-label " + id + "-value")" aria-haspopup="listbox" aria-expanded="@(aberto ? "true" : "false")" aria-controls="@(id + "-options")" disabled="@(Disabled || Loading)" @onclick="Alternar">
+        <span id="@(id + "-value")">@(Loading ? "Carregando…" : RotuloSelecionado)</span>
         @if (Loading) { <span class="small-spinner" aria-hidden="true"></span> } else { <Icon Name="chevron" Size="17" Class="select-chevron" /> }
     </button>
     <small class="field-hint">@Hint</small>
@@ -12,15 +13,17 @@
     {
         <button type="button" class="select-backdrop" tabindex="-1" aria-label="Fechar opções de @Label" @onclick="Fechar"></button>
         <div class="select-dropdown">
-            <div class="select-search"><Icon Name="search" Size="16" /><input @ref="busca" @bind="termo" @bind:event="oninput" @bind:after="AtualizarFiltro" placeholder="Buscar @Label.ToLowerInvariant()…" aria-label="Buscar @Label.ToLowerInvariant()" role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="@(id + "-options")" aria-activedescendant="@(filtrados.Count > 0 ? $"{id}-option-{filtrados[indice].Id}" : null)" /></div>
-            <div id="@(id + "-options")" class="select-options" role="listbox" aria-labelledby="@(id + "-label")">
+            <div class="select-search"><Icon Name="search" Size="16" /><input @ref="busca" @bind="termo" @bind:event="oninput" @bind:after="AtualizarBusca" placeholder="Buscar @Label.ToLowerInvariant()…" aria-label="Buscar @Label.ToLowerInvariant()" role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="@(id + "-options")" aria-activedescendant="@(filtrados.Count > 0 ? $"{id}-option-{filtrados[indice].Id}" : null)" /></div>
+            <div id="@(id + "-options")" class="select-options" role="listbox" aria-labelledby="@(id + "-label")" aria-busy="@(pesquisando ? "true" : "false")">
                 @foreach (var item in filtrados)
                 {
-                    <button @key="item.Id" id="@($"{id}-option-{item.Id}")" type="button" role="option" aria-selected="@(item.Id == Value)" tabindex="-1" class="select-option @(filtrados[indice].Id == item.Id ? "highlighted" : "")" @onclick="() => Selecionar(item.Id)"><span>@item.Nome</span>@if (item.Id == Value) { <Icon Name="check" Size="16" /> }</button>
+                    <button @key="item.Id" id="@($"{id}-option-{item.Id}")" type="button" role="option" aria-selected="@(item.Id == Value ? "true" : "false")" tabindex="-1" class="select-option @(filtrados[indice].Id == item.Id ? "highlighted" : "")" @onclick="() => Selecionar(item.Id)"><span>@item.Nome</span>@if (item.Id == Value) { <Icon Name="check" Size="16" /> }</button>
                 }
-                @if (filtrados.Count == 0) { <div class="select-no-results">Nenhum resultado para “@termo”.</div> }
             </div>
-            <div class="select-dropdown-footer">@(total > 80 ? $"{total} opções · refine a busca para ver mais" : $"{total} opções disponíveis")<span>↑ ↓ navegar · Enter selecionar</span></div>
+            @if (pesquisando) { <div class="select-no-results" role="status"><span class="small-spinner" aria-hidden="true"></span> Pesquisando modelos…</div> }
+            else if (erroPesquisa is not null) { <div class="select-no-results" role="alert">@erroPesquisa <button type="button" class="text-button" @onclick="RepetirPesquisa">Tentar novamente</button></div> }
+            else if (filtrados.Count == 0) { <div class="select-no-results" role="status">@(SearchProvider is not null && !PodePesquisar ? EmptySearchHint : $"Nenhum resultado para “{termo}”.")</div> }
+            <div class="select-dropdown-footer">@(temMais ? $"{filtrados.Count}+ opções · refine a busca para ver mais" : $"{total} opções disponíveis")<span>↑ ↓ navegar · Enter selecionar</span></div>
         </div>
     }
 </div>
@@ -34,6 +37,11 @@
     [Parameter] public string Hint { get; set; } = "";
     [Parameter] public bool Disabled { get; set; }
     [Parameter] public bool Loading { get; set; }
+    [Parameter] public Func<string, CancellationToken, Task<ResultadoPesquisaSelecao>>? SearchProvider { get; set; }
+    [Parameter] public object? SearchContext { get; set; }
+    [Parameter] public ItemSelecao? SelectedItem { get; set; }
+    [Parameter] public bool SearchEmpty { get; set; }
+    [Parameter] public string EmptySearchHint { get; set; } = "Digite pelo menos 2 caracteres para pesquisar.";
     private readonly string id = "select-" + Guid.NewGuid().ToString("N");
     private ElementReference busca, gatilho;
     private bool aberto, focar, rolar;
@@ -41,18 +49,77 @@
     private string termo = "";
     private int indice, total;
     private List<ItemSelecao> filtrados = [];
+    private ItemSelecao? selecionado;
+    private CancellationTokenSource? pesquisa;
+    private int versaoPesquisa;
+    private bool pesquisando, temMais, descartado;
+    private string? erroPesquisa;
+    private object? contextoPesquisa;
+    private bool PodePesquisar => termo.Trim().Length >= 2 || (SearchEmpty && string.IsNullOrWhiteSpace(termo));
+    private string RotuloSelecionado => (SelectedItem?.Id == Value ? SelectedItem.Nome : null)
+        ?? Items.FirstOrDefault(x => x.Id == Value)?.Nome
+        ?? (selecionado?.Id == Value ? selecionado.Nome : null) ?? Placeholder;
     protected override void OnParametersSet()
     {
-        if (Disabled || Loading) aberto = false;
-        AtualizarFiltro();
+        if (!Equals(contextoPesquisa, SearchContext))
+        {
+            contextoPesquisa = SearchContext; Fechar();
+            termo = ""; filtrados = []; total = indice = 0; temMais = false; erroPesquisa = null;
+        }
+        if (Disabled || Loading) Fechar();
+        if (SearchProvider is null) AtualizarFiltro();
     }
     private void AtualizarFiltro()
     {
         var resultado = Items.Where(i => CultureInfo.GetCultureInfo("pt-BR").CompareInfo.IndexOf(i.Nome, termo, CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0).ToList();
-        total = resultado.Count; filtrados = resultado.Take(80).ToList(); indice = 0; rolar = true;
+        total = resultado.Count; filtrados = resultado.Take(80).ToList(); temMais = total > 80; indice = 0; rolar = true;
     }
-    private void Alternar() { aberto = !aberto; if (aberto) { termo = ""; AtualizarFiltro(); focar = true; } }
-    private void Fechar() => aberto = false;
+    private Task AtualizarBusca() => SearchProvider is null ? FiltrarLocal() : PesquisarAsync(true);
+    private Task FiltrarLocal() { AtualizarFiltro(); return Task.CompletedTask; }
+    private async Task Alternar()
+    {
+        if (aberto) { Fechar(); return; }
+        aberto = true; termo = ""; focar = true;
+        if (SearchProvider is null) AtualizarFiltro();
+        else await PesquisarAsync(false);
+    }
+    private void CancelarPesquisa()
+    {
+        ++versaoPesquisa;
+        pesquisa?.Cancel(); pesquisa?.Dispose(); pesquisa = null; pesquisando = false;
+    }
+    private void Fechar() { aberto = false; CancelarPesquisa(); }
+    private Task RepetirPesquisa() => PesquisarAsync(false);
+    private async Task PesquisarAsync(bool aguardar)
+    {
+        CancelarPesquisa();
+        filtrados = []; total = indice = 0; temMais = false; erroPesquisa = null;
+        if (!aberto || descartado || !PodePesquisar || SearchProvider is null) return;
+        pesquisa = new();
+        var token = pesquisa.Token;
+        var requisicao = versaoPesquisa;
+        var provedor = SearchProvider;
+        var texto = termo;
+        pesquisando = true;
+        try
+        {
+            if (aguardar) await Task.Delay(300, token);
+            var resultado = await provedor(texto, token);
+            if (descartado || !aberto || token.IsCancellationRequested || requisicao != versaoPesquisa) return;
+            filtrados = resultado.Itens.Take(80).ToList(); total = filtrados.Count;
+            temMais = resultado.TemMais || resultado.Itens.Count > 80; indice = 0; rolar = true;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            if (!descartado && aberto && !token.IsCancellationRequested && requisicao == versaoPesquisa)
+            {
+                Logger.LogWarning(ex, "Falha ao pesquisar opções de {Label}.", Label);
+                erroPesquisa = "Não foi possível pesquisar os modelos.";
+            }
+        }
+        finally { if (requisicao == versaoPesquisa) pesquisando = false; }
+    }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!aberto) return;
@@ -62,13 +129,14 @@
     }
     private async Task Selecionar(int valor)
     {
-        aberto = false;
+        selecionado = filtrados.FirstOrDefault(x => x.Id == valor);
+        Fechar();
         await gatilho.FocusAsync();
         await ValueChanged.InvokeAsync(valor);
     }
     private async Task Tecla(KeyboardEventArgs e)
     {
-        if (e.Key == "Escape" || e.Key == "Tab") { aberto = false; if (e.Key == "Escape") await gatilho.FocusAsync(); }
+        if (e.Key == "Escape" || e.Key == "Tab") { Fechar(); if (e.Key == "Escape") await gatilho.FocusAsync(); }
         else if (aberto && e.Key == "ArrowDown" && filtrados.Count > 0) { indice = (indice + 1) % filtrados.Count; rolar = true; }
         else if (aberto && e.Key == "ArrowUp" && filtrados.Count > 0) { indice = (indice + filtrados.Count - 1) % filtrados.Count; rolar = true; }
         else if (aberto && e.Key == "Home") { indice = 0; rolar = true; }
@@ -77,6 +145,7 @@
     }
     public async ValueTask DisposeAsync()
     {
+        descartado = true; Fechar();
         if (modulo is null) return;
         try { await modulo.DisposeAsync(); } catch (JSDisconnectedException) { }
     }

@@ -38,6 +38,7 @@
     private IComponentRenderMode? PageRenderMode => HttpContext.AcceptsInteractiveRouting() ? InteractiveServer : null;
 
     // AdSense só com o Publisher ID configurado e nunca para contas no plano sem anúncios.
-    private bool ExibirAnuncios => !string.IsNullOrEmpty(Anuncios.Value.AdSenseClientId)
+    private bool ExibirAnuncios => !Anuncios.Value.ExibirMock
+                                   && !string.IsNullOrEmpty(Anuncios.Value.AdSenseClientId)
                                    && !PlanoUsuario.SemAnuncios(HttpContext.User, DateTime.UtcNow);
 }

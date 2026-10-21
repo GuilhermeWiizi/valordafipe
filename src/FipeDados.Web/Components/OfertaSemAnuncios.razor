@@ -1,0 +1,74 @@
+@inject IOptions<AnunciosOptions> Anuncios
+@inject OfertaPlano Oferta
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (habilitada)
+{
+    <dialog @ref="dialogo" class="plan-offer" aria-labelledby="plan-offer-title" aria-describedby="plan-offer-description" data-nosnippet>
+        <form method="dialog" class="plan-offer-dismiss">
+            <button type="submit" aria-label="Fechar oferta">×</button>
+        </form>
+        <span class="plan-offer-icon"><Icon Name="shield" Size="28" /></span>
+        <span class="plan-offer-eyebrow">MAIS FLUIDEZ NAS SUAS CONSULTAS</span>
+        <h2 id="plan-offer-title">Consulte sem anúncios</h2>
+        <p id="plan-offer-description">Conheça o plano para pesquisar e comparar veículos sem publicidade e sem estas ofertas.</p>
+        <a class="btn btn-primary" href="@LinkPlano">Conhecer o plano <Icon Name="arrow" Size="17" /></a>
+        <form method="dialog">
+            <button type="submit" class="text-button plan-offer-continue" autofocus>Continuar consultando</button>
+        </form>
+        <small>Suas consultas continuam gratuitas. Contratação em breve.</small>
+    </dialog>
+}
+
+@code {
+    [Parameter] public bool Pesquisa { get; set; }
+    [Parameter] public string? Evento { get; set; }
+    [Parameter] public bool ResultadoDisponivel { get; set; }
+    [Parameter, EditorRequired] public string Caminho { get; set; } = "/consultar-tabela-fipe";
+    [CascadingParameter] private Task<AuthenticationState> AuthenticationState { get; set; } = default!;
+
+    private ElementReference dialogo;
+    private IJSObjectReference? modulo;
+    private bool habilitada, pesquisaLida, descartada;
+    private string? eventoPesquisa, ultimoEvento;
+    private string LinkPlano => $"/sem-anuncios?ReturnUrl={Uri.EscapeDataString(ContaUrls.Retorno(Caminho))}";
+
+    protected override async Task OnParametersSetAsync()
+        => habilitada = Anuncios.Value.ExibirMock
+            && !PlanoUsuario.SemAnuncios((await AuthenticationState).User, DateTime.UtcNow);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!habilitada || descartada) return;
+        if (Pesquisa && !pesquisaLida)
+        {
+            pesquisaLida = true;
+            eventoPesquisa = Oferta.ConsumirPesquisa(new Uri(Nav.Uri).AbsolutePath, Nav.HistoryEntryState);
+        }
+        var evento = Pesquisa ? eventoPesquisa : Evento;
+        if (!ResultadoDisponivel || evento is null || evento == ultimoEvento) return;
+        ultimoEvento = evento;
+        try
+        {
+            modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/plan-offer.js");
+            if (!descartada) await modulo.InvokeVoidAsync("registerAndShow", dialogo, evento);
+        }
+        catch (JSException) { /* A oferta nunca impede a consulta. */ }
+        catch (OperationCanceledException) { }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        descartada = true;
+        if (modulo is null) return;
+        try
+        {
+            await modulo.InvokeVoidAsync("dispose", dialogo);
+            await modulo.DisposeAsync();
+        }
+        catch (JSException) { }
+        catch (OperationCanceledException) { }
+    }
+}

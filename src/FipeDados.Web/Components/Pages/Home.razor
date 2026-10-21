@@ -5,10 +5,13 @@
 
 <SeoMetadata Title="Tabela Fipe: preços e histórico de carros e motos | VALORDAFIPE"
              Description="Consulte a Tabela Fipe de carros e motos, acompanhe até 24 meses de preços e compare a valorização ou desvalorização dos veículos na VALORDAFIPE." />
-<div class="page-eyebrow"><span class="eyebrow-line"></span> SEU RADAR DO MERCADO</div>
 <section class="home-hero">
     <div class="hero-copy"><h1>Tabela Fipe.<br />O preço e sua <span>história.</span></h1><p>Consulte preços de carros e motos e acompanhe<br class="desktop-break" /> até 24 meses de variação da Tabela Fipe.</p><a class="btn btn-primary" href="consultar-tabela-fipe"><Icon Name="search" Size="18" /> Consultar Tabela Fipe <Icon Name="arrow" Size="18" /></a></div>
-    <div class="hero-visual" aria-hidden="true"><div class="visual-grid"></div><span class="visual-label"><span class="status-dot"></span> CADA MÊS CONTA</span><div class="visual-number">24<span>meses de história.</span></div><svg class="hero-chart" viewBox="0 0 380 110" fill="none"><defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#7ce8b8" stop-opacity=".23" /><stop offset="1" stop-color="#7ce8b8" stop-opacity="0" /></linearGradient></defs><path d="M0 91L28 79 55 51 84 73 120 42 147 61 175 29 204 49 233 17 263 43 292 14 322 35 353 5 380 8V110H0Z" fill="url(#chartFill)"/><path d="M0 91L28 79 55 51 84 73 120 42 147 61 175 29 204 49 233 17 263 43 292 14 322 35 353 5 380 8" stroke="#7ce8b8" stroke-width="2.5" stroke-linejoin="miter"/></svg></div>
+    <AnuncioMock Posicao="home-destaque" Destaque="true">
+        <Fallback>
+            <div class="hero-visual" aria-hidden="true"><div class="visual-grid"></div><span class="visual-label"><span class="status-dot"></span> CADA MÊS CONTA</span><div class="visual-number">24<span>meses de história.</span></div><svg class="hero-chart" viewBox="0 0 380 110" fill="none"><defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#7ce8b8" stop-opacity=".23" /><stop offset="1" stop-color="#7ce8b8" stop-opacity="0" /></linearGradient></defs><path d="M0 91L28 79 55 51 84 73 120 42 147 61 175 29 204 49 233 17 263 43 292 14 322 35 353 5 380 8V110H0Z" fill="url(#chartFill)"/><path d="M0 91L28 79 55 51 84 73 120 42 147 61 175 29 204 49 233 17 263 43 292 14 322 35 353 5 380 8" stroke="#7ce8b8" stroke-width="2.5" stroke-linejoin="miter"/></svg></div>
+        </Fallback>
+    </AnuncioMock>
 </section>
 <section class="market-section" aria-labelledby="ranking-title">
     <div class="section-heading"><div><div class="page-eyebrow">MOVIMENTOS DO MÊS</div><h2 id="ranking-title">Quem subiu. Quem caiu.</h2></div><div class="segmented-control" role="group" aria-label="Filtrar ranking por tipo"><button class="@(tipo is null ? "selected" : "")" aria-pressed="@(tipo is null)" @onclick="() => Filtrar(null)">Todos</button><button class="@(tipo == TipoVeiculo.Carro ? "selected" : "")" aria-pressed="@(tipo == TipoVeiculo.Carro)" @onclick="() => Filtrar(TipoVeiculo.Carro)"><Icon Name="car" Size="16" /> Carros</button><button class="@(tipo == TipoVeiculo.Moto ? "selected" : "")" aria-pressed="@(tipo == TipoVeiculo.Moto)" @onclick="() => Filtrar(TipoVeiculo.Moto)"><Icon Name="bike" Size="16" /> Motos</button></div></div>
@@ -19,10 +22,18 @@
     else
     {
         <div class="rankings-grid" aria-busy="@carregando"><RankingCard Alta="true" Carregando="carregando" SemComparacao="@(ranking?.VeiculosComparados == 0)" Itens="@(ranking?.Altas ?? [])" /><RankingCard Alta="false" Carregando="carregando" SemComparacao="@(ranking?.VeiculosComparados == 0)" Itens="@(ranking?.Baixas ?? [])" /></div>
+        @if (!carregando && ranking?.VeiculosComparados > 0)
+        {
+            <AnuncioMock Posicao="home-entre-rankings" />
+        }
         <BrandDepreciationRanking Itens="@(ranking?.MarcasComMaiorDesvalorizacao ?? [])" Referencia="ranking?.Referencia" Tipo="tipo" Carregando="carregando" SemComparacao="@(ranking?.VeiculosComparados == 0)" />
         <p class="ranking-disclaimer"><Icon Name="info" Size="15" /><span>Ranking da nossa base, que pode ter cobertura parcial. Só entram veículos com preço válido nos dois meses; cada ano e versão é comparado separadamente. @(ranking?.Referencia is { } mes ? $"Referência: {mes.ToString("MMMM/yyyy", Pt)} × {mes.AddMonths(-1).ToString("MMMM/yyyy", Pt)}." : "Aguardando tabelas de referência.")</span></p>
     }
 </section>
+@if (!carregando && !erro && ranking?.VeiculosComparados > 0)
+{
+    <AnuncioMock Posicao="home-apos-rankings" />
+}
 <section class="explore-banner"><span class="banner-icon"><Icon Name="search" Size="25" /></span><div><h3>Tem um veículo em mente?</h3><p>Encontre o preço atual e veja como ele mudou ao longo do tempo.</p></div><a class="btn btn-outline-primary" href="consultar-tabela-fipe">Fazer uma consulta <Icon Name="arrow" Size="17" /></a></section>
 @code {
     private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-BR");

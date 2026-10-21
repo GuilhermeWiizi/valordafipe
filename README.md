@@ -26,8 +26,8 @@ Termos de Uso e resultar em bloqueio de IP. Use com moderação e por sua conta 
   - **PostgreSQL portátil** (sem Docker e sem admin): `.\tools\pg-portable.ps1 start`. Na primeira
     execução baixa os binários oficiais da EnterpriseDB (~330 MB) para `.pgsql/` (fora do Git),
     cria o cluster com as mesmas credenciais do docker-compose e sobe na porta 5432.
-    O servidor sobe desanexado (via WMI), então não morre quando o terminal, a IDE ou o agente
-    que rodou o script é fechado. Não é serviço do Windows: após reiniciar o PC, rode `start`
+    O servidor sobe desanexado (via WMI) e com console oculto, então não morre quando o
+    terminal, a IDE ou o agente que rodou o script é fechado, nem por uma janela fechada. Não é serviço do Windows: após reiniciar o PC, rode `start`
     de novo. Para parar: `.\tools\pg-portable.ps1 stop`.
 
 ## Rodar tudo com Docker
@@ -156,7 +156,7 @@ Para conferir diretamente na VPS:
 cd /srv/FipeDados
 docker compose -p fipedados --env-file .env.vps -f docker-compose.vps.yml ps
 docker compose -p fipedados --env-file .env.vps -f docker-compose.vps.yml logs -f web
-curl -I http://127.0.0.1:8082/robots.txt
+curl -sS -D - -o /dev/null http://127.0.0.1:8082/robots.txt
 ```
 
 ### Domínio e HTTPS
@@ -199,7 +199,7 @@ cd /srv/FipeDados
 cp deploy/nginx/valordafipe.conf /etc/nginx/sites-available/valordafipe.com.br
 ln -s /etc/nginx/sites-available/valordafipe.com.br /etc/nginx/sites-enabled/valordafipe.com.br
 nginx -t && systemctl reload nginx
-curl -I -H 'Host: valordafipe.com.br' http://127.0.0.1/robots.txt
+curl -sS -D - -o /dev/null -H 'Host: valordafipe.com.br' http://127.0.0.1/robots.txt
 ```
 
 Instale o arquivo e crie o link somente na configuração inicial. Após o Certbot configurar
@@ -211,7 +211,7 @@ Com o DNS propagado e HTTP acessível, use o Certbot já instalado na VPS:
 
 ```bash
 certbot --nginx -d valordafipe.com.br --redirect
-curl -I https://valordafipe.com.br/robots.txt
+curl -sS -D - -o /dev/null https://valordafipe.com.br/robots.txt
 certbot renew --dry-run
 ```
 
@@ -429,6 +429,18 @@ mesmo PostgreSQL (tabelas `AspNet*`, criadas pela migration `AddContas` no start
   pagamento, chame `SignInManager.RefreshSignInAsync` para valer na hora.
 - **AdSense:** defina `Anuncios__AdSenseClientId=ca-pub-...` para carregar o script (Auto ads) no
   `<head>`. Vazio = nenhum anúncio. Contas no plano sem anúncios nunca carregam o script.
+- **Demonstração do plano:** com `Anuncios:ExibirMock=true`, pesquisas pelo formulário e novas
+  comparações bem-sucedidas compartilham a oferta “Consulte sem anúncios”. Ela aparece depois
+  do resultado, na terceira consulta; as próximas exigem três novas consultas e pelo menos
+  10 minutos desde a última oferta. Pode ser fechada imediatamente, inclusive por Escape.
+  A contagem fica em `sessionStorage` por aba e sobrevive à recarga. Se o armazenamento falhar,
+  a consulta segue sem oferta. Erros, tentativas repetidas da mesma comparação, mudanças de
+  período/medida, links diretos, catálogo e veículos relacionados não contam. Assinantes ativos
+  não recebem a oferta. A origem da pesquisa usa estado interno de navegação, sem mudar a URL.
+  `/sem-anuncios` apresenta os benefícios previstos, informa “Contratação em breve” e permite
+  voltar ao resultado por `ReturnUrl` local; a última comparação fica em memória no circuito
+  para esse retorno, preservando período e medida. Não há preço, checkout ou cobrança nesta etapa.
+  Testes da frequência no navegador: `node --test tests/browser/plan-offer.test.mjs`.
 
 ### E-mail (recuperação de senha)
 

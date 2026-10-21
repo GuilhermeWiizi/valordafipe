@@ -1,0 +1,25 @@
+@page "/sem-anuncios"
+
+<SeoMetadata Title="Plano sem anúncios | VALORDAFIPE"
+             Description="Conheça o futuro plano da VALORDAFIPE para consultar e comparar veículos sem anúncios. Contratação em breve."
+             Path="/sem-anuncios" />
+
+<section class="ad-free-plan" aria-labelledby="ad-free-title">
+    <span class="plan-icon"><Icon Name="shield" Size="32" /></span>
+    <span class="plan-eyebrow">VALORDAFIPE · PLANO SEM ANÚNCIOS</span>
+    <h1 id="ad-free-title">Mais espaço para <span>suas decisões.</span></h1>
+    <p class="plan-intro">Pesquise preços e compare veículos com uma experiência mais tranquila.</p>
+    <div class="plan-benefits">
+        <article><Icon Name="shield" Size="24" /><h2>Sem publicidade</h2><p>Consulte os preços e o histórico sem anúncios nas páginas.</p></article>
+        <article><Icon Name="search" Size="24" /><h2>Sem estas ofertas</h2><p>Continue suas pesquisas e comparações sem convites para conhecer o plano.</p></article>
+        <article><Icon Name="chart" Size="24" /><h2>Toda a informação</h2><p>Preços, gráficos, rankings e comparações continuam disponíveis para ajudar você a decidir.</p></article>
+    </div>
+    <div class="plan-availability" role="status"><strong>Contratação em breve</strong><p>O plano ainda não está disponível para compra. Preço e condições serão apresentados no lançamento.</p></div>
+    <a class="btn btn-primary" href="@Retorno">Voltar à consulta <Icon Name="arrow" Size="17" /></a>
+    <p class="plan-free-note">Você pode continuar usando as consultas gratuitas, sem criar uma conta.</p>
+</section>
+
+@code {
+    [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+    private string Retorno => ContaUrls.Retorno(ReturnUrl, "/consultar-tabela-fipe");
+}

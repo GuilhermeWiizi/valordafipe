@@ -23,6 +23,9 @@ public interface ICatalogService
 
     Task<IReadOnlyList<ItemSelecao>> ObterModelosAsync(int marcaId, CancellationToken ct = default);
 
+    /// <summary>Pesquisa somente o banco, por tipo e marca opcional, sem consultar a Fipe.</summary>
+    Task<ResultadoPesquisaModelos> PesquisarModelosAsync(TipoVeiculo tipo, string termo, int? marcaId = null, CancellationToken ct = default);
+
     /// <summary>Anos/versões de um modelo. O <c>Id</c> de cada item é o <c>VeiculoId</c>.</summary>
     Task<IReadOnlyList<ItemSelecao>> ObterAnosAsync(int modeloId, CancellationToken ct = default);
 }

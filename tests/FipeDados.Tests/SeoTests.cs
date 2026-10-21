@@ -9,6 +9,7 @@ using FipeDados.Core.Services;
 using FipeDados.Infrastructure.BackgroundJobs;
 using FipeDados.Infrastructure.Data;
 using FipeDados.Web.Seo;
+using FipeDados.Web.Contas;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -112,7 +113,7 @@ public class SeoTests
             const string modelPath = brandPath + "/modelo-00";
             const string vehiclePath = modelPath + "/2025-gasolina";
 
-            foreach (var path in SeoEndpoints.StaticPaths.Concat([brandPath, modelPath, vehiclePath]))
+            foreach (var path in SeoEndpoints.StaticPaths.Concat(["/sem-anuncios", brandPath, modelPath, vehiclePath]))
             {
                 var response = await client.GetAsync(path);
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -145,6 +146,31 @@ public class SeoTests
             Assert.DoesNotContain("?utm_source=teste\"", detail);
             Assert.Contains($"href=\"{modelPath}\"", detail);
             Assert.Contains($"href=\"{brandPath}\"", detail);
+            Assert.DoesNotContain("<dialog open", detail);
+            var plano = WebUtility.HtmlDecode(await client.GetStringAsync($"/sem-anuncios?ReturnUrl={Uri.EscapeDataString(vehiclePath)}"));
+            Assert.Contains("Contratação em breve", plano);
+            Assert.Contains($"href=\"{vehiclePath}\"", plano);
+            foreach (var externo in new[] { "https://example.com", "//example.com", "/\\example.com", "/\n/example.com" })
+            {
+                var seguro = await client.GetStringAsync($"/sem-anuncios?ReturnUrl={Uri.EscapeDataString(externo)}");
+                Assert.Contains("href=\"/consultar-tabela-fipe\"", seguro);
+                Assert.DoesNotContain("href=\"" + externo, seguro);
+            }
+            // Voltar do plano recupera a comparação e sua medida sem coletar preços novamente.
+            await using (var scope = factory.Services.CreateAsyncScope())
+            {
+                var a = (await scope.ServiceProvider.GetRequiredService<IPrecoService>().ObterDetalheEmCacheAsync(vehicle.Id))!;
+                var b = a with { VeiculoId = vehicle.Id + 1 };
+                var salva = new ComparacaoSalva(a, b, 1, false);
+                await using var retornoFactory = factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+                    services.AddScoped<OfertaPlano>(_ => new() { UltimaComparacao = salva })));
+                using var retornoClient = retornoFactory.CreateClient(new() { BaseAddress = new Uri("https://localhost") });
+                var comparacao = WebUtility.HtmlDecode(await retornoClient.GetStringAsync($"/comparar?a={a.VeiculoId}&b={b.VeiculoId}"));
+                Assert.Contains("Como cada um se movimentou?", comparacao);
+                Assert.Contains("Evolução dos preços", comparacao);
+                Assert.DoesNotContain("Quem preservou melhor o valor?", comparacao);
+                Assert.Equal(0, api.Calls);
+            }
             Assert.Contains("Código Fipe 000001-0", WebUtility.HtmlDecode(Regex.Replace(await client.GetStringAsync(modelPath), "<[^>]+>", "")));
             var upper = await client.GetStringAsync("/tabela-fipe/Carros/Marca-E-Cia/MODELO-00/2025-Gasolina");
             Assert.Contains($"rel=\"canonical\" href=\"https://valordafipe.com.br{vehiclePath}\"", upper);

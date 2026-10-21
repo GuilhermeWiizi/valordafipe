@@ -39,8 +39,11 @@ public sealed class AnunciosOptions
 {
     public const string Section = "Anuncios";
 
-    /// <summary>Publisher ID do AdSense (ca-pub-...). Vazio = nenhum anúncio no site.</summary>
+    /// <summary>Publisher ID do AdSense (ca-pub-...). Vazio = nenhum anúncio real no site.</summary>
     public string? AdSenseClientId { get; set; }
+
+    /// <summary>Exibe espaços demonstrativos e desativa o script real do AdSense.</summary>
+    public bool ExibirMock { get; set; }
 
     public static bool IsValid(AnunciosOptions o)
         => string.IsNullOrEmpty(o.AdSenseClientId)

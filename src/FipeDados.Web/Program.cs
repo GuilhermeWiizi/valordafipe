@@ -24,6 +24,7 @@ builder.Services.AddOptions<SeoOptions>().BindConfiguration("Seo")
     .ValidateOnStart();
 builder.Services.AddSingleton<SeoSite>();
 builder.Services.AddScoped<PublicCatalog>();
+builder.Services.AddScoped<OfertaPlano>();
 builder.Services.AddOutputCache(options => options.AddPolicy("SeoDiscovery", policy => policy.Expire(TimeSpan.FromMinutes(15))));
 builder.Services.AddResponseCompression(options =>
 {

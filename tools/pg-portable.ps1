@@ -80,9 +80,14 @@ function Iniciar {
         # Sobe via WMI para o servidor nascer fora da árvore/Job Object de quem chamou
         # (terminal, IDE, agente). Iniciado direto, ele morria junto com essa sessão sem
         # desligamento limpo ("database system was not properly shut down").
+        # ShowWindow = 0 (SW_HIDE): o console herdado por cmd/postgres fica oculto. Visível,
+        # fechar a janela derrubava o banco (CTRL_CLOSE_EVENT, exceção 0xC000013A no log).
         $pgCtl = Join-Path $Bin 'pg_ctl.exe'
         $cmd = "`"$pgCtl`" start -D `"$Dados`" -l `"$Log`" -o `"-p $Porta`""
-        $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cmd; CurrentDirectory = $Raiz }
+        $oculto = New-CimInstance -Namespace root/cimv2 -ClassName Win32_ProcessStartup -ClientOnly -Property @{ ShowWindow = [uint16]0 }
+        $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
+            CommandLine = $cmd; CurrentDirectory = $Raiz; ProcessStartupInformation = $oculto
+        }
         if ($r.ReturnValue -ne 0) { throw "Falha ao iniciar o PostgreSQL (WMI retornou $($r.ReturnValue))." }
 
         $pronto = $false

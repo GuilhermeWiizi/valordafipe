@@ -84,6 +84,10 @@ else
             </div>
         </div>
 
+        @if (r.ValorAtual > 0)
+        {
+            <AnuncioMock Posicao="veiculo-apos-estatisticas" />
+        }
     }
     else if (!atualizando)
     {
@@ -92,6 +96,9 @@ else
     <RelatedVehicles Detail="detalhe" />
     <section class="seo-copy"><h2>Sobre os preços de @detalhe.Marca @detalhe.Modelo</h2><p>Os valores correspondem a @Ano, conforme a referência de cada mês. O preço de compra ou venda pode variar com conservação, região e outras condições. A base pode ter cobertura parcial e os meses ausentes não são estimados.</p><p><a href="@CatalogPaths.Model(detalhe.Tipo, detalhe.MarcaSlug, detalhe.ModeloSlug)">Ver outros anos deste modelo</a> · <a href="@CatalogPaths.Brand(detalhe.Tipo, detalhe.MarcaSlug)">Ver modelos @detalhe.Marca</a> · <a href="/sobre">Fontes e metodologia</a></p></section>
 }
+
+<OfertaSemAnuncios @key="rotaAtual" Pesquisa="true" ResultadoDisponivel="@(detalhe?.Resumo is { ValorAtual: > 0 })"
+                  Caminho="@(detalhe is null ? "/consultar-tabela-fipe" : CatalogPaths.Vehicle(detalhe))" />
 
 @code {
     [Parameter] public string Tipo { get; set; } = "";
