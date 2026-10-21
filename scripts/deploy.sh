@@ -8,6 +8,18 @@ if [[ ! -f .env.vps ]]; then
     exit 1
 fi
 
+revision=$(git rev-parse HEAD)
+expected_revision=${1:-$revision}
+if [[ "$revision" != "$expected_revision" ]]; then
+    echo "A revisao da VPS ($revision) difere da solicitada ($expected_revision). Deploy cancelado." >&2
+    exit 1
+fi
+if ! git diff --quiet HEAD --; then
+    echo "Ha alteracoes locais na VPS. Commit ou revise essas alteracoes antes do deploy." >&2
+    exit 1
+fi
+export BUILD_REVISION="$revision"
+
 compose=(docker compose --project-name fipedados --env-file .env.vps -f docker-compose.vps.yml)
 if ! command -v curl >/dev/null; then
     echo "Instale curl na VPS antes de executar o deploy." >&2
@@ -16,7 +28,7 @@ fi
 "${compose[@]}" config --quiet
 
 # Compile antes de substituir o site que estiver em execucao.
-echo "Compilando a imagem do FIPE..."
+echo "Compilando a imagem do FIPE na revisao $BUILD_REVISION..."
 "${compose[@]}" build web
 
 echo "Atualizando os servicos do FIPE..."
@@ -25,22 +37,32 @@ if ! "${compose[@]}" up -d --wait --wait-timeout 180; then
     exit 1
 fi
 
-# --wait verifica o processo; esta consulta confirma que o HTTP iniciou apos as migrations.
+# HTTP 200 sozinho nao comprova que a imagem nova foi publicada.
 web_endpoint=$("${compose[@]}" port web 8080)
-ready=false
-for attempt in {1..30}; do
-    if curl --fail --silent --output /dev/null --max-time 5 "http://${web_endpoint}/robots.txt"; then
-        ready=true
-        break
-    fi
-    sleep 2
-done
+check_version() {
+    local url=$1 attempts=$2 actual attempt
+    for ((attempt = 1; attempt <= attempts; attempt++)); do
+        actual=$(curl --fail --silent --max-time 10 \
+            --header 'Cache-Control: no-cache' "${url}/health/version?revision=${BUILD_REVISION}") || actual=""
+        if [[ "$actual" == "$BUILD_REVISION" ]]; then return 0; fi
+        if ((attempt < attempts)); then sleep 2; fi
+    done
+    echo "A revisao $BUILD_REVISION nao foi confirmada em $url. Confira a imagem, o Nginx, o dominio e o cache." >&2
+    return 1
+}
 
-if [[ "$ready" != true ]]; then
-    echo "O FIPE nao respondeu ao teste HTTP. Confira a porta WEB_PORT e os logs abaixo." >&2
+if ! check_version "http://${web_endpoint}" 30; then
     "${compose[@]}" logs --tail 80 web >&2 || true
     exit 1
 fi
 
+public_url=$("${compose[@]}" exec -T web printenv Seo__SiteUrl)
+public_url=${public_url%$'\r'}
+if [[ "$public_url" != https://* ]]; then
+    echo "Configure SEO_SITE_URL com o dominio HTTPS publicado antes de concluir o deploy." >&2
+    exit 1
+fi
+check_version "${public_url%/}" 3
+
 "${compose[@]}" ps
-echo "FIPE atualizado e respondendo em http://${web_endpoint}."
+echo "FIPE atualizado: $BUILD_REVISION confirmado no container e em $public_url."

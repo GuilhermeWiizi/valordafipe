@@ -4,6 +4,7 @@ using FipeDados.Infrastructure;
 using FipeDados.Infrastructure.Data;
 using FipeDados.Web.Components;
 using FipeDados.Web.Contas;
+using FipeDados.Web.Deployment;
 using FipeDados.Web.Seo;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.ResponseCompression;
@@ -80,6 +81,7 @@ app.Use(async (context, next) =>
 app.UseOutputCache();
 
 app.MapStaticAssets();
+app.MapDeploymentEndpoints();
 app.MapSeoEndpoints();
 app.MapContaEndpoints();
 app.MapRazorComponents<App>()

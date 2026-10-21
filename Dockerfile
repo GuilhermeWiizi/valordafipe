@@ -10,8 +10,10 @@ RUN dotnet restore src/FipeDados.Web/FipeDados.Web.csproj \
 COPY src/ src/
 
 FROM build AS web-publish
+ARG BUILD_REVISION=unknown
 RUN dotnet publish src/FipeDados.Web/FipeDados.Web.csproj \
-    -c Release -o /app/web --no-restore /p:UseAppHost=false
+    -c Release -o /app/web --no-restore /p:UseAppHost=false \
+    /p:SourceRevisionId=$BUILD_REVISION
 
 FROM build AS scraper-publish
 RUN dotnet publish src/FipeDados.Scraper/FipeDados.Scraper.csproj \

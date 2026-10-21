@@ -143,9 +143,21 @@ cd C:\Git\FipeDados
 
 O script busca a branch `main` com `--ff-only`, valida a configuração e compila antes
 de substituir o site. Atualiza somente o projeto Compose `fipedados`, mantém o volume
-do banco e confirma a resposta HTTP depois das migrations. A atualização pode causar
+do banco e confirma que `/health/version` retorna o commit esperado tanto no contêiner
+quanto no domínio HTTPS de `SEO_SITE_URL`, depois das migrations. HTTP 200 de outra
+versão não é considerado sucesso. A atualização pode causar
 uma breve interrupção do FIPE. Se falhar, mostra o erro e retorna código diferente de zero.
 O `.env.vps` permanece no servidor e é ignorado pelo Git.
+
+O `.bat` confere o commit local e recusa alterações ainda não commitadas. Se a branch
+da VPS estiver diferente da revisão local, o deploy é interrompido antes do build.
+É possível consultar a revisão publicada em `https://valordafipe.com.br/health/version`.
+
+Os anúncios de demonstração e a oferta de plano ficam habilitados no ambiente local
+por `appsettings.Development.json`. Para exibi-los também na VPS, configure
+`ADS_EXIBIR_MOCK=true` em `.env.vps` e execute o deploy. O padrão é `false`;
+essa configuração não depende de `ADSENSE_CLIENT_ID` e exibe anúncios fictícios
+identificados como demonstração. Diferenças nessa opção não significam versão antiga.
 
 Para outra pasta, branch ou conexão, defina `DEPLOY_PATH`, `DEPLOY_BRANCH` ou `DEPLOY_HOST`
 no ambiente antes de executar o `.bat`. Use `--no-pause` para execução automatizada.
