@@ -439,8 +439,14 @@ mesmo PostgreSQL (tabelas `AspNet*`, criadas pela migration `AddContas` no start
 - **Plano sem anúncios:** `AspNetUsers.SemAnunciosAte` (UTC). Enquanto for futuro, a conta não vê
   anúncios. O valor vai no cookie e é renovado a cada 30 minutos; ao estender o plano após um
   pagamento, chame `SignInManager.RefreshSignInAsync` para valer na hora.
-- **AdSense:** defina `Anuncios__AdSenseClientId=ca-pub-...` para carregar o script (Auto ads) no
-  `<head>`. Vazio = nenhum anúncio. Contas no plano sem anúncios nunca carregam o script.
+- **AdSense:** o Publisher ID `ca-pub-3765938973361380` já está configurado para carregar o
+  script de verificação (Auto ads) no `<head>`. Os arquivos Compose usam esse mesmo ID quando
+  `ADSENSE_CLIENT_ID` está vazio ou ausente; defina essa variável para usar outra conta.
+  Para desativar, configure `Anuncios__AdSenseClientId` vazio diretamente na aplicação.
+  Com `Anuncios:ExibirMock=true` (ou `ADS_EXIBIR_MOCK=true` na VPS), o script real não é carregado;
+  use `ADS_EXIBIR_MOCK=false` para verificar o site no AdSense. Contas no plano sem anúncios
+  nunca carregam o script. Depois de publicar, marque “Adicionei o código” e clique em
+  “Verificar” no AdSense.
 - **Demonstração do plano:** com `Anuncios:ExibirMock=true`, pesquisas pelo formulário e novas
   comparações bem-sucedidas compartilham a oferta “Consulte sem anúncios”. Ela aparece depois
   do resultado, na terceira consulta; as próximas exigem três novas consultas e pelo menos
