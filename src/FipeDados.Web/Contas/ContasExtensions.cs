@@ -62,7 +62,7 @@ public static class ContasExtensions
         services.AddOptions<EmailOptions>().BindConfiguration(EmailOptions.Section);
         services.AddSingleton<IEmailSender<Usuario>, EmailConta>();
         services.AddOptions<AnunciosOptions>().BindConfiguration(AnunciosOptions.Section)
-            .Validate(AnunciosOptions.IsValid, "Anuncios:AdSenseClientId deve estar no formato ca-pub-0000000000000000.")
+            .Validate(AnunciosOptions.IsValid, "Anuncios:AdSenseClientId deve estar no formato ca-pub-0000000000000000 e Anuncios:Blocos deve ter só IDs numéricos.")
             .ValidateOnStart();
         services.AddOptions<AnalyticsOptions>().BindConfiguration(AnalyticsOptions.Section)
             .Validate(AnalyticsOptions.IsValid, "Analytics:MeasurementId deve estar no formato G-XXXXXXXXXX.")

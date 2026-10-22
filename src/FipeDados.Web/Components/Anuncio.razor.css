@@ -8,6 +8,17 @@
 .ad-preview-title { margin: 7px 0 5px; color: #334d40; font-family: 'Manrope', sans-serif; font-size: 17px; font-weight: 700; line-height: 1.5; }
 .ad-preview-description { margin: 0; color: #718078; font-size: var(--fd-text-ui); line-height: 1.7; }
 .ad-preview-action { display: inline-flex; align-items: center; gap: 9px; flex-shrink: 0; padding: 11px 14px; border: 1px solid #c6d4cb; border-radius: 5px; color: #496353; font-size: var(--fd-text-ui); }
+.ad-host, .ad-fallback { display: contents; }
+.ad-real .ad-preview-label, .ad-real ins { max-width: 970px; margin-left: auto; margin-right: auto; }
+.ad-host > .ad-fallback { display: none; }
+/* Rótulo e margens só com anúncio entregue: bloco ainda sem resposta não deixa espaço vazio. */
+.ad-preview.ad-real { margin: 0; }
+.ad-real .ad-preview-label { display: none; }
+.ad-host:has(ins[data-ad-status="filled"]) > .ad-real:not(.ad-preview--hero, .ad-preview--compact) { margin: 32px 0; }
+.ad-host:has(ins[data-ad-status="filled"]) .ad-preview-label { display: flex; }
+/* Recomendação do AdSense para bloco sem anúncio: ocultar e devolver o conteúdo original. */
+.ad-host:has(ins[data-ad-status="unfilled"]) > .ad-real { display: none; }
+.ad-host:has(ins[data-ad-status="unfilled"]) > .ad-fallback { display: contents; }
 .ad-preview--hero { margin: 0; }
 .ad-preview--hero .ad-preview-creative { min-height: 250px; padding: 24px; flex-direction: column; justify-content: center; gap: 16px; text-align: center; }
 .ad-preview--hero .ad-preview-symbol { display: grid; width: 52px; height: 52px; }

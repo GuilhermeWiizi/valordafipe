@@ -16,9 +16,9 @@
         <div class="page-eyebrow"><span class="eyebrow-line"></span> DOIS VEÍCULOS. UMA VISÃO MAIS CLARA.</div>
         <div class="explore-heading compare-page-heading"><div><h1>Compare veículos <span>pela Tabela Fipe.</span></h1><p>Compare a valorização e a desvalorização de carros e motos ao longo do tempo.</p></div></div>
     </div>
-    <AnuncioMock Posicao="comparacao-cabecalho" Compacto="true">
+    <Anuncio Posicao="comparacao-cabecalho" Compacto="true">
         <Fallback><span class="compare-heading-icon"><Icon Name="compare" Size="30" /></span></Fallback>
-    </AnuncioMock>
+    </Anuncio>
 </div>
 
 @if (detalheA is not null && detalheB is not null)
@@ -77,7 +77,7 @@
                 <p class="compare-chart-note"><Icon Name="info" Size="14" /> Meses sem preço ficam sem ponto no gráfico. Nenhum valor é estimado.</p>
             </section>
 
-            <AnuncioMock Posicao="comparacao-apos-grafico" />
+            <Anuncio Posicao="comparacao-apos-grafico" />
 
             <section class="compare-table-card" aria-labelledby="table-title"><div class="compare-table-heading"><h3 id="table-title">Os números, lado a lado</h3><p>Os percentuais mostram a mudança do valor, independentemente do preço de cada veículo.</p></div><div class="compare-table-scroll"><table class="table compare-table"><thead><tr><th scope="col">INDICADOR</th><th scope="col"><span class="table-vehicle-label">A · @a.Marca @a.Modelo</span><small>@a.AnoLabel</small></th><th scope="col"><span class="table-vehicle-label color-b-text">B · @b.Marca @b.Modelo</span><small>@b.AnoLabel</small></th></tr></thead><tbody>
                 <tr><th scope="row">Preço no início <small>@c.Inicio.ToString("MM/yyyy")</small></th><td>@Moeda(c.A.PrecoInicial)</td><td>@Moeda(c.B.PrecoInicial)</td></tr>

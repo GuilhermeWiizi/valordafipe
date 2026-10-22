@@ -135,6 +135,9 @@ public class SeoTests
             Assert.Contains("googletagmanager.com/gtag/js?id=G-D86QY28MTM", home);
             Assert.Contains("gtag('config', 'G-D86QY28MTM')", home);
             Assert.Matches("src=\"[^\"]*js/analytics\\.[^\"]*js\"", home);
+            // Blocos reais desligados por padrão (site em análise no AdSense): o espaço mantém o conteúdo original.
+            Assert.DoesNotContain("<ins class=\"adsbygoogle\"", home);
+            Assert.Contains("class=\"hero-visual\"", home);
             Assert.Contains("href=\"/privacidade\"", home);
             Assert.Contains("href=\"/termos\"", home);
             var privacidade = WebUtility.HtmlDecode(await client.GetStringAsync("/privacidade"));

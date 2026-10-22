@@ -8,7 +8,7 @@
     <div class="history-chart"><fipe-historico data-serie="@serieJson" role="img" aria-label="@($"Gráfico do preço Fipe de {Detail.Marca} {Detail.Modelo} {Detail.AnoLabel}")"></fipe-historico></div>
     @if (Detail.Resumo is { ValorAtual: > 0 })
     {
-        <AnuncioMock Posicao="veiculo-apos-grafico" />
+        <Anuncio Posicao="veiculo-apos-grafico" />
     }
     <div class="history-table-heading"><div><h3>Variação mês a mês</h3><p>Acompanhe cada movimento e a mudança acumulada no período.</p></div><a class="btn btn-outline-primary" href="@CsvUrl" download="@($"historico-fipe-{Detail.VeiculoId}.csv")" data-historico-csv><Icon Name="external" Size="14" /> Baixar CSV</a></div>
     <div class="history-table-scroll"><table class="table history-table"><caption>Histórico da Tabela Fipe de @Detail.Marca @Detail.Modelo @Detail.AnoLabel. Acumulado desde <span data-historico-desde>@(linhas.FirstOrDefault(l => l.Valor > 0)?.Data.ToString("MM/yyyy") ?? "—")</span>.</caption><thead><tr><th scope="col">REFERÊNCIA</th><th scope="col">PREÇO FIPE</th><th scope="col">NO MÊS (%)</th><th scope="col">NO MÊS (R$)</th><th scope="col">ACUMULADA (%)</th></tr></thead><tbody>

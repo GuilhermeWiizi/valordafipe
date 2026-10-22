@@ -44,6 +44,10 @@
     {
         <script src="@Assets["js/analytics.js"]"></script>
     }
+    @if (ExibirAnuncios && Anuncios.Value.BlocosAtivos)
+    {
+        <script src="@Assets["js/anuncios.js"]"></script>
+    }
 </body>
 
 </html>

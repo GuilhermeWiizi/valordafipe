@@ -47,6 +47,7 @@ services:
       Email__Remetente: ${EMAIL_REMETENTE:-VALORDAFIPE <nao-responda@valordafipe.com.br>}
       Anuncios__AdSenseClientId: ${ADSENSE_CLIENT_ID:-ca-pub-3765938973361380}
       Anuncios__ExibirMock: ${ADS_EXIBIR_MOCK:-false}
+      Anuncios__BlocosAtivos: ${ADS_BLOCOS_ATIVOS:-false}
       Pagamentos__Habilitado: ${PIX_HABILITADO:-false}
       MercadoPago__Habilitado: ${MP_HABILITADO:-false}
       MercadoPago__Producao: ${MP_PRODUCAO:-false}

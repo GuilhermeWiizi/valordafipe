@@ -45,7 +45,17 @@ public sealed class AnunciosOptions
     /// <summary>Exibe espaços demonstrativos e desativa o script real do AdSense.</summary>
     public bool ExibirMock { get; set; }
 
+    /// <summary>Liga os blocos reais nos espaços; fica desligado até o AdSense aprovar o site, quando os blocos ainda viriam vazios.</summary>
+    public bool BlocosAtivos { get; set; }
+
+    /// <summary>Posição do espaço na página (data-ad-placement) → ID do bloco de anúncios (data-ad-slot).</summary>
+    public Dictionary<string, string> Blocos { get; set; } = [];
+
+    public string? Bloco(string posicao)
+        => BlocosAtivos && !ExibirMock && !string.IsNullOrEmpty(AdSenseClientId) && Blocos.TryGetValue(posicao, out var slot) ? slot : null;
+
     public static bool IsValid(AnunciosOptions o)
-        => string.IsNullOrEmpty(o.AdSenseClientId)
-           || (o.AdSenseClientId.StartsWith("ca-pub-", StringComparison.Ordinal) && o.AdSenseClientId[7..] is { Length: >= 10 } id && id.All(char.IsAsciiDigit));
+        => (string.IsNullOrEmpty(o.AdSenseClientId)
+            || (o.AdSenseClientId.StartsWith("ca-pub-", StringComparison.Ordinal) && o.AdSenseClientId[7..] is { Length: >= 10 } id && id.All(char.IsAsciiDigit)))
+           && o.Blocos.Values.All(slot => slot is { Length: >= 8 } && slot.All(char.IsAsciiDigit));
 }

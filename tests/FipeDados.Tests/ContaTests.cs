@@ -69,6 +69,24 @@ public class ContaTests
         => Assert.Equal(esperado, AnunciosOptions.IsValid(new() { AdSenseClientId = id }));
 
     [Theory]
+    [InlineData("3780208652", true)]
+    [InlineData("123", false)]
+    [InlineData("3780208652\"><script>", false)]
+    public void BlocosDeAnuncio_SoIdsNumericos(string slot, bool esperado)
+        => Assert.Equal(esperado, AnunciosOptions.IsValid(new() { AdSenseClientId = AdSense, Blocos = new() { ["home-destaque"] = slot } }));
+
+    [Fact]
+    public void BlocoDeAnuncio_SoComChaveLigadaSemDemonstracaoEComPublisher()
+    {
+        var blocos = new Dictionary<string, string> { ["home-destaque"] = "3780208652" };
+        Assert.Equal("3780208652", new AnunciosOptions { AdSenseClientId = AdSense, BlocosAtivos = true, Blocos = blocos }.Bloco("home-destaque"));
+        Assert.Null(new AnunciosOptions { AdSenseClientId = AdSense, BlocosAtivos = true, Blocos = blocos }.Bloco("outro-espaco"));
+        Assert.Null(new AnunciosOptions { AdSenseClientId = AdSense, Blocos = blocos }.Bloco("home-destaque"));
+        Assert.Null(new AnunciosOptions { AdSenseClientId = AdSense, BlocosAtivos = true, ExibirMock = true, Blocos = blocos }.Bloco("home-destaque"));
+        Assert.Null(new AnunciosOptions { BlocosAtivos = true, Blocos = blocos }.Bloco("home-destaque"));
+    }
+
+    [Theory]
     [InlineData(null, true)]
     [InlineData("", true)]
     [InlineData("G-D86QY28MTM", true)]
@@ -100,6 +118,11 @@ public class ContaTests
             Assert.Contains("href=\"/conta/entrar\"", home);
             Assert.Contains("Criar conta", home);
             Assert.Contains($"adsbygoogle.js?client={AdSense}", home);
+            // Bloco real no espaço de destaque, com o gráfico original guardado para quando vier sem anúncio.
+            Assert.Contains("data-ad-placement=\"home-destaque\"", home);
+            Assert.Contains($"data-ad-client=\"{AdSense}\" data-ad-slot=\"3780208652\" data-ad-format=\"auto\"", home);
+            Assert.Contains("class=\"ad-fallback", home);
+            Assert.Matches("src=\"[^\"]*js/anuncios\\.[^\"]*js\"", home);
             Assert.Contains("href=\"/conta/entrar?ReturnUrl=%2Fsobre\"", await Texto(anonimo, "/sobre"));
             var privacidade = await Texto(anonimo, "/privacidade");
             Assert.Contains("A VALORDAFIPE exibe anúncios do Google AdSense", privacidade);
@@ -225,6 +248,7 @@ public class ContaTests
             builder.UseSetting("ColetaMensal:Habilitada", "false");
             builder.UseEnvironment("Production");
             builder.UseSetting("Anuncios:AdSenseClientId", AdSense);
+            builder.UseSetting("Anuncios:BlocosAtivos", "true");
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IDbContextFactory<FipeDbContext>>();

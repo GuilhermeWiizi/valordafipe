@@ -496,6 +496,12 @@ mesmo PostgreSQL (tabelas `AspNet*`, criadas pela migration `AddContas` no start
   use `ADS_EXIBIR_MOCK=false` para verificar o site no AdSense. Contas no plano sem anúncios
   nunca carregam o script. Depois de publicar, marque “Adicionei o código” e clique em
   “Verificar” no AdSense.
+- **Blocos de anúncio:** os 8 espaços (`Anuncio`, identificados por `data-ad-placement`) usam
+  5 blocos de display responsivos, mapeados em `Anuncios:Blocos` no `appsettings.json`
+  (VF Home destaque, VF Cabecalho, VF Home rankings, VF Veiculo e VF Comparacao). Ficam
+  desligados até a aprovação do site: depois dela, defina `ADS_BLOCOS_ATIVOS=true` no
+  `.env.vps` e execute o deploy. Bloco sem anúncio (`data-ad-status="unfilled"`) é ocultado
+  e o conteúdo original do espaço volta, como o gráfico da home.
 - **Demonstração do plano:** com `Anuncios:ExibirMock=true`, pesquisas pelo formulário e novas
   comparações bem-sucedidas compartilham a oferta “Consulte sem anúncios”. Ela aparece depois
   do resultado, na terceira consulta; as próximas exigem três novas consultas e pelo menos
