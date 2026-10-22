@@ -258,6 +258,28 @@ O plugin Nginx emite o certificado e configura HTTPS, conforme o
 Se `certbot` não estiver instalado, siga o instalador apropriado ao sistema da VPS.
 Depois de validar HTTPS, defina `SEO_ALLOW_INDEXING=true` no `.env.vps` e execute o deploy.
 
+### Backup do banco
+
+O banco guarda contas, pedidos e pagamentos. `deploy/backup/backup-fipedados.sh` faz um `pg_dump`
+em formato custom, confere o índice do arquivo e mantém 30 dias em `/root/backups/fipedados/db`
+(log em `/var/log/backup-fipedados.log`):
+
+```bash
+cat > /etc/cron.d/valordafipe-backup <<'EOF'
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+30 3 * * * root /srv/FipeDados/deploy/backup/backup-fipedados.sh >/dev/null
+EOF
+```
+
+Restauração (sobrescreve o banco; faça um dump antes):
+
+```bash
+docker exec -i fipedados-fipedados-db-1 pg_restore -U fipe -d fipedados --clean --if-exists < /root/backups/fipedados/db/ARQUIVO.dump
+```
+
+Os arquivos ficam no mesmo disco da VPS. Copie-os periodicamente para fora do servidor:
+uma perda da VPS leva o banco e os backups juntos.
+
 ## Rodar o site com o SDK local
 
 ```bash
