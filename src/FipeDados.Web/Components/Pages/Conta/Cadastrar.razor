@@ -49,6 +49,7 @@
             return;
         }
         await SignInManager.SignInAsync(usuario, isPersistent: true);
+        Analytics.AgendarEvento(HttpContext, "sign_up");
         Nav.NavigateTo(ContaUrls.Retorno(ReturnUrl, ContaUrls.MinhaConta));
     }
 

@@ -131,6 +131,10 @@ public class SeoTests
 
             // Páginas legais no rodapé; sem Publisher ID configurado, a política diz que não há anúncios.
             var home = await client.GetStringAsync("/");
+            // GA4 só em produção, com o script dos eventos que a medição otimizada não captura.
+            Assert.Contains("googletagmanager.com/gtag/js?id=G-D86QY28MTM", home);
+            Assert.Contains("gtag('config', 'G-D86QY28MTM')", home);
+            Assert.Matches("src=\"[^\"]*js/analytics\\.[^\"]*js\"", home);
             Assert.Contains("href=\"/privacidade\"", home);
             Assert.Contains("href=\"/termos\"", home);
             var privacidade = WebUtility.HtmlDecode(await client.GetStringAsync("/privacidade"));
@@ -258,7 +262,10 @@ public class SeoTests
             Assert.Contains("Disallow: /", await devClient.GetStringAsync("/robots.txt"));
             var devHome = await devClient.GetAsync("/");
             Assert.Contains("noindex", devHome.Headers.GetValues("X-Robots-Tag").Single());
-            Assert.Contains("noindex, follow", await devHome.Content.ReadAsStringAsync());
+            var devHtml = await devHome.Content.ReadAsStringAsync();
+            Assert.Contains("noindex, follow", devHtml);
+            Assert.DoesNotContain("googletagmanager", devHtml); // Acessos locais não entram no GA.
+            Assert.DoesNotMatch("src=\"[^\"]*js/analytics\\.[^\"]*js\"", devHtml);
             Assert.Equal(0, api.Calls);
         }
         finally

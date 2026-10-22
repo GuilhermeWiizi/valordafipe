@@ -68,6 +68,16 @@ public class ContaTests
     public void AdSenseClientId_ValidadoNaPartida(string? id, bool esperado)
         => Assert.Equal(esperado, AnunciosOptions.IsValid(new() { AdSenseClientId = id }));
 
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("", true)]
+    [InlineData("G-D86QY28MTM", true)]
+    [InlineData("G-123", false)]
+    [InlineData("G-D86QY28MTM');alert(1);//", false)]
+    [InlineData("UA-12345678-1", false)]
+    public void AnalyticsMeasurementId_ValidadoNaPartida(string? id, bool esperado)
+        => Assert.Equal(esperado, AnalyticsOptions.IsValid(new() { MeasurementId = id }));
+
     [PostgresFact]
     public async Task Conta_Cadastro_Login_Plano_Senha_Exclusao_SemExigirLoginNoSite()
     {
@@ -112,6 +122,8 @@ public class ContaTests
 
             var criado = await Postar(cliente, "/conta/cadastrar?ReturnUrl=%2Fsobre", "cadastrar", ("Input.Email", email), ("Input.Senha", senha), ("Input.Confirmacao", senha));
             Assert.Equal("/sobre", Local(criado));
+            // sign_up vai para a próxima página por cookie lido no navegador, sem tocar no HTML cacheado.
+            Assert.Contains(criado.Headers.GetValues("Set-Cookie"), c => c.StartsWith($"{Analytics.CookieEvento}=sign_up;", StringComparison.Ordinal));
             var conta = await Texto(cliente, "/conta");
             Assert.Contains(email, conta);
             Assert.Contains("Gratuito", conta);
@@ -158,11 +170,22 @@ public class ContaTests
             await Postar(recuperar, "/conta/esqueci-senha", "esqueci-senha", ("Input.Email", email));
             var link = new Uri(WebUtility.HtmlDecode(Assert.Single(emails.Links)));
             Assert.Equal("https://valordafipe.com.br", link.GetLeftPart(UriPartial.Authority));
-            Assert.Contains("Link inválido ou incompleto", await Texto(recuperar, "/conta/redefinir-senha?codigo=@@@"));
-            var redefinida = await Html(await Postar(recuperar, link.PathAndQuery, "redefinir-senha", ("Input.Email", email), ("Input.Senha", recuperada), ("Input.Confirmacao", recuperada)));
+            Assert.Contains("Link inválido ou incompleto", await Texto(Cliente(app), "/conta/redefinir-senha"));
+            Assert.Equal("/conta/redefinir-senha", Local(await recuperar.GetAsync("/conta/redefinir-senha?codigo=@@@")));
+            Assert.Contains("Link inválido ou incompleto", await Texto(recuperar, "/conta/redefinir-senha"));
+            // O código do e-mail vira cookie restrito e sai da URL antes de a página (e o GA) carregar.
+            var abertura = await recuperar.GetAsync(link.PathAndQuery);
+            Assert.Equal("/conta/redefinir-senha", Local(abertura));
+            var cookieCodigo = Assert.Single(abertura.Headers.GetValues("Set-Cookie"), c => c.StartsWith("vf_redefinir=", StringComparison.Ordinal));
+            Assert.Contains("path=/conta/redefinir-senha", cookieCodigo, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("httponly", cookieCodigo, StringComparison.OrdinalIgnoreCase);
+            var redefinida = await Html(await Postar(recuperar, "/conta/redefinir-senha", "redefinir-senha", ("Input.Email", email), ("Input.Senha", recuperada), ("Input.Confirmacao", recuperada)));
             Assert.Contains("Senha redefinida.", redefinida);
+            Assert.Contains("Link inválido ou incompleto", await Texto(recuperar, "/conta/redefinir-senha")); // Cookie apagado após o uso.
             Assert.Equal("/", Local(await Postar(recuperar, "/conta/entrar", "entrar", ("Input.Email", email), ("Input.Senha", recuperada))));
-            var reuso = await Html(await Postar(Cliente(app), link.PathAndQuery, "redefinir-senha", ("Input.Email", email), ("Input.Senha", "mais uma frase"), ("Input.Confirmacao", "mais uma frase")));
+            var reusoCliente = Cliente(app);
+            await reusoCliente.GetAsync(link.PathAndQuery);
+            var reuso = await Html(await Postar(reusoCliente, "/conta/redefinir-senha", "redefinir-senha", ("Input.Email", email), ("Input.Senha", "mais uma frase"), ("Input.Confirmacao", "mais uma frase")));
             Assert.Contains("Link inválido ou expirado", reuso);
 
             // Bloqueio após 5 erros; o link de redefinição libera a conta.
@@ -171,7 +194,9 @@ public class ContaTests
                 await Postar(atacante, "/conta/entrar", "entrar", ("Input.Email", email), ("Input.Senha", $"tentativa errada {i}"));
             Assert.Contains("Muitas tentativas", await Html(await Postar(atacante, "/conta/entrar", "entrar", ("Input.Email", email), ("Input.Senha", recuperada))));
             await Postar(recuperar, "/conta/esqueci-senha", "esqueci-senha", ("Input.Email", email));
-            Assert.Contains("Senha redefinida.", await Html(await Postar(Cliente(app), new Uri(WebUtility.HtmlDecode(emails.Links[^1])).PathAndQuery, "redefinir-senha",
+            var desbloqueio = Cliente(app);
+            await desbloqueio.GetAsync(new Uri(WebUtility.HtmlDecode(emails.Links[^1])).PathAndQuery);
+            Assert.Contains("Senha redefinida.", await Html(await Postar(desbloqueio, "/conta/redefinir-senha", "redefinir-senha",
                 ("Input.Email", email), ("Input.Senha", recuperada), ("Input.Confirmacao", recuperada))));
             var exclusor = Cliente(app);
             Assert.Equal("/", Local(await Postar(exclusor, "/conta/entrar", "entrar", ("Input.Email", email), ("Input.Senha", recuperada))));

@@ -64,6 +64,9 @@ public static class ContasExtensions
         services.AddOptions<AnunciosOptions>().BindConfiguration(AnunciosOptions.Section)
             .Validate(AnunciosOptions.IsValid, "Anuncios:AdSenseClientId deve estar no formato ca-pub-0000000000000000.")
             .ValidateOnStart();
+        services.AddOptions<AnalyticsOptions>().BindConfiguration(AnalyticsOptions.Section)
+            .Validate(AnalyticsOptions.IsValid, "Analytics:MeasurementId deve estar no formato G-XXXXXXXXXX.")
+            .ValidateOnStart();
         return services;
     }
 

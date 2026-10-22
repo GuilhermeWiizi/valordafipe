@@ -49,7 +49,8 @@
         }
         else if (pedido.Status == StatusPedidoPix.Aprovado)
         {
-            <p role="status">Pagamento aprovado! Seu acesso foi atualizado. <a href="/consultar-tabela-fipe" data-enhance-nav="false">Continuar consultando sem anúncios</a>.</p>
+            <p role="status" data-ga-compra="@(Teste ? null : pedido.Id.ToString())" data-ga-valor="@pedido.Valor.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+               data-ga-plano="@pedido.PlanoCodigo" data-ga-plano-nome="@pedido.PlanoNome">Pagamento aprovado! Seu acesso foi atualizado. <a href="/consultar-tabela-fipe" data-enhance-nav="false">Continuar consultando sem anúncios</a>.</p>
         }
         else if (pedido.Status is StatusPedidoPix.Expirado or StatusPedidoPix.Cancelado or StatusPedidoPix.Falha)
         {
@@ -69,6 +70,8 @@
     [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
     private PedidoPix? pedido;
     private string? qr;
+    // Pedido do sandbox do Mercado Pago não é receita: não vira compra no GA.
+    private bool Teste => pedido is { Provedor: ProvedorPix.MercadoPago, AmbienteProducao: false };
     protected override async Task OnParametersSetAsync()
     {
         pedido = await Service.ObterAsync(HttpContext.User, Id);

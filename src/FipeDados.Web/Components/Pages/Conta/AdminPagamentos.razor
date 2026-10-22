@@ -74,7 +74,7 @@
             @if (pedidos.Count == PagamentosService.PorPagina) { <a href="@($"?pagina={PaginaAtual + 1}")">Próxima</a> }
         </nav>
     }
-    <p class="payment-links"><a href="/conta/admin/pagamentos">Lista de pagamentos</a> · <a href="/conta">Minha conta</a></p>
+    <p class="payment-links"><a href="/conta/admin/pagamentos">Lista de pagamentos</a> · <a href="/conta" data-enhance-nav="false">Minha conta</a></p>
 </section>
 
 @code {

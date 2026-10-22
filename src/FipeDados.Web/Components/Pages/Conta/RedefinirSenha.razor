@@ -2,6 +2,7 @@
 @using System.Text
 @using Microsoft.AspNetCore.WebUtilities
 @inject UserManager<Usuario> UserManager
+@inject NavigationManager Nav
 
 <SeoMetadata Title="Criar nova senha | VALORDAFIPE" Description="Crie uma nova senha para sua conta na VALORDAFIPE." Path="/conta/redefinir-senha" NoIndex="true" />
 <ContaCartao Titulo="Criar nova senha" Texto="Confirme o e-mail da conta e escolha a nova senha." Icone="shield" Erros="erros" Sucesso="@sucesso">
@@ -31,6 +32,8 @@
 </ContaCartao>
 
 @code {
+    private const string Caminho = "/conta/redefinir-senha", CookieCodigo = "vf_redefinir";
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
     [SupplyParameterFromQuery(Name = "codigo")] private string? Codigo { get; set; }
     [SupplyParameterFromForm] private Dados Input { get; set; } = default!;
     private string? token;
@@ -40,7 +43,18 @@
     protected override void OnInitialized()
     {
         Input ??= new();
-        token = Decodificar(Codigo);
+        // O código sai da URL antes de a página carregar: analytics, histórico e referrer nunca o veem.
+        if (HttpMethods.IsGet(HttpContext.Request.Method) && Codigo is not null)
+        {
+            HttpContext.Response.Cookies.Append(CookieCodigo, Codigo, new CookieOptions
+            {
+                Path = Caminho, MaxAge = ContasExtensions.ValidadeLinkSenha, HttpOnly = true,
+                Secure = HttpContext.Request.IsHttps, SameSite = SameSiteMode.Lax, IsEssential = true
+            });
+            Nav.NavigateTo(Caminho);
+            return;
+        }
+        token = Decodificar(HttpContext.Request.Cookies[CookieCodigo]);
         if (token is null) erros = ["Link inválido ou incompleto. Peça um novo link."];
     }
 
@@ -63,6 +77,7 @@
             await UserManager.SetLockoutEndDateAsync(usuario, null);
             await UserManager.ResetAccessFailedCountAsync(usuario);
         }
+        HttpContext.Response.Cookies.Delete(CookieCodigo, new CookieOptions { Path = Caminho });
         sucesso = "Senha redefinida. Entre com a nova senha.";
     }
 

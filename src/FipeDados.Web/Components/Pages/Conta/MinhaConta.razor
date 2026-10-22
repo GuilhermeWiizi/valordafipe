@@ -33,7 +33,7 @@
             <p><a href="/sem-anuncios">Contratar ou renovar plano</a> · <a href="/conta/pagamentos">Meus pagamentos</a></p>
             @if (Pagamentos.Value.Administrador(HttpContext.User))
             {
-                <p><a href="/conta/admin/pagamentos">Acompanhar pagamentos</a></p>
+                <p><a href="/conta/admin/pagamentos" data-enhance-nav="false">Acompanhar pagamentos</a></p>
             }
         </section>
         <section class="account-panel" aria-labelledby="conta-sessao">

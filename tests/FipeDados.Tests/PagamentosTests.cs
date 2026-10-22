@@ -133,7 +133,12 @@ public class PagamentosTests
         Assert.Equal(Agora.AddMonths(3), (await f.Usuario("cliente@example.com")).SemAnunciosAte);
         var pagina = await cliente.GetAsync(caminho);
         Assert.True(pagina.Headers.CacheControl!.NoStore);
-        Assert.DoesNotContain("adsbygoogle.js", await pagina.Content.ReadAsStringAsync());
+        var aprovadoHtml = await pagina.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("adsbygoogle.js", aprovadoHtml);
+        // Compra para o GA4: id do pedido como transaction_id, valor e plano.
+        Assert.Contains($"data-ga-compra=\"{id}\" data-ga-valor=\"27.90\" data-ga-plano=\"trimestral\"", aprovadoHtml);
+        Assert.Contains("googletagmanager", aprovadoHtml);
+        Assert.DoesNotContain("googletagmanager", await admin.GetStringAsync(adminCaminho)); // Painel fora do GA.
         Assert.DoesNotContain("adsbygoogle.js", await cliente.GetStringAsync("/"));
         Assert.DoesNotContain("adsbygoogle.js", await cliente.GetStringAsync("/conta"));
         var conferido = await f.Service.ObterAsync(Principal(comprador.Id), id);
