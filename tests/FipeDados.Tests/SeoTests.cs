@@ -265,6 +265,7 @@ public class SeoTests
         => new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment(environment);
+            builder.UseStaticWebAssets();
             builder.UseSetting("ColetaMensal:Habilitada", "false");
             builder.UseSetting("Anuncios:AdSenseClientId", "");
             builder.ConfigureServices(services =>

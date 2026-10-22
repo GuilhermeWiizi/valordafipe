@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using FipeDados.Core.Entities;
 using FipeDados.Core.Enums;
 using FipeDados.Core.Models;
@@ -129,7 +130,13 @@ public class DesempenhoTests
             Assert.Contains("aria-current=\"true\" href=\"/?tipo=motos#ranking-title\"", motos);
             Assert.DoesNotContain(MarcadorCircuito, await client.GetStringAsync("/catalogo"));
             // Consulta e comparação seguem interativas.
-            Assert.Contains(MarcadorCircuito, await client.GetStringAsync("/consultar-tabela-fipe"));
+            var consulta = await client.GetStringAsync("/consultar-tabela-fipe");
+            Assert.Contains(MarcadorCircuito, consulta);
+            var scriptBlazor = Regex.Match(consulta, "<script src=\"([^\"]*blazor\\.web[^\"]*)\"");
+            Assert.True(scriptBlazor.Success, "A consulta deve carregar o JavaScript do Blazor.");
+            var scriptResponse = await client.GetAsync(scriptBlazor.Groups[1].Value);
+            Assert.Equal(HttpStatusCode.OK, scriptResponse.StatusCode);
+            Assert.Contains("javascript", scriptResponse.Content.Headers.ContentType?.MediaType ?? "");
             Assert.Contains(MarcadorCircuito, await client.GetStringAsync("/comparar"));
             Assert.Equal(0, api.Calls);
 

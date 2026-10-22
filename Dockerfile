@@ -13,7 +13,8 @@ FROM build AS web-publish
 ARG BUILD_REVISION=unknown
 RUN dotnet publish src/FipeDados.Web/FipeDados.Web.csproj \
     -c Release -o /app/web --no-restore /p:UseAppHost=false \
-    /p:SourceRevisionId=$BUILD_REVISION
+    /p:SourceRevisionId=$BUILD_REVISION \
+    && test -s /app/web/wwwroot/_framework/blazor.web.js
 
 FROM build AS scraper-publish
 RUN dotnet publish src/FipeDados.Scraper/FipeDados.Scraper.csproj \

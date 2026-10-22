@@ -56,6 +56,10 @@ if ! check_version "http://${web_endpoint}" 30; then
     exit 1
 fi
 
+# HTML e versao podem responder mesmo quando o JavaScript que ativa os combos esta ausente.
+curl --fail --silent --show-error --max-time 10 \
+    "http://${web_endpoint}/_framework/blazor.web.js" --output /dev/null
+
 public_url=$("${compose[@]}" exec -T web printenv Seo__SiteUrl)
 public_url=${public_url%$'\r'}
 if [[ "$public_url" != https://* ]]; then
@@ -63,6 +67,8 @@ if [[ "$public_url" != https://* ]]; then
     exit 1
 fi
 check_version "${public_url%/}" 3
+curl --fail --silent --show-error --max-time 10 \
+    "${public_url%/}/_framework/blazor.web.js" --output /dev/null
 
 "${compose[@]}" ps
 echo "FIPE atualizado: $BUILD_REVISION confirmado no container e em $public_url."
