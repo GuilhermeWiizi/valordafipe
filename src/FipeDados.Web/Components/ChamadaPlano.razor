@@ -1,0 +1,19 @@
+@if (!semAnuncios)
+{
+    <section class="plan-banner" aria-labelledby="plan-banner-title" data-nosnippet>
+        <span class="plan-banner-icon"><Icon Name="shield" Size="25" /></span>
+        <div>
+            <h2 id="plan-banner-title">Suas consultas, sem anúncios.</h2>
+            <p>Escolha seu período e pague por Pix. Sem renovação automática.</p>
+        </div>
+        <a class="btn btn-primary" href="/sem-anuncios" data-plan-source="home">Ver planos <Icon Name="arrow" Size="17" /></a>
+    </section>
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState> AuthenticationState { get; set; } = default!;
+    private bool semAnuncios;
+
+    protected override async Task OnParametersSetAsync()
+        => semAnuncios = PlanoUsuario.SemAnuncios((await AuthenticationState).User, DateTime.UtcNow);
+}

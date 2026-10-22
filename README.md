@@ -103,6 +103,38 @@ atualização dos contêineres. O host padrão é `root@srv1684584.hstgr.cloud` 
 remota é `/srv/FipeDados`. O FIPE usa um projeto Compose próprio, banco próprio sem
 porta publicada e a porta **127.0.0.1:8082** para o site (RotinaPsi usa 8080 e Evolution usa 8081).
 
+### Acesso SSH já configurado neste computador
+
+No perfil Windows `C:\Users\Guilherme`, o arquivo `.ssh\config` contém o alias
+**`fipe`**, que conecta a `root@srv1684584.hstgr.cloud` usando a chave local
+`C:\Users\Guilherme\.ssh\fipe_vps` (`IdentitiesOnly yes`). O acesso por chave,
+sem solicitar senha, foi verificado em **22/10/2026**; o repositório encontrado na
+VPS é `/srv/FipeDados`, na branch `main`.
+
+Para conferir o acesso e o estado do repositório sem publicar:
+
+```powershell
+rtk proxy ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10 fipe "git -C /srv/FipeDados status --short --branch"
+```
+
+Para fazer deploy a partir deste computador, depois de commitar e enviar as
+alterações à branch `main`:
+
+```powershell
+cd C:\Git\FipeDados
+$env:DEPLOY_HOST = "fipe"
+rtk proxy .\scripts\deploy.bat --no-pause
+```
+
+O alias é necessário para selecionar essa chave: o host padrão do `.bat` usa o
+endereço completo, ao qual o bloco `Host fipe` não se aplica. `DEPLOY_HOST` vale
+somente para o processo atual do PowerShell e os processos iniciados por ele.
+Outras máquinas podem configurar o próprio acesso e manter o host padrão do script.
+As instruções para agentes estão em [AGENTS.md](AGENTS.md).
+
+As chaves privadas permanecem no perfil do Windows. A configuração `.env.vps`
+permanece no servidor; esses arquivos não devem ser copiados para o repositório.
+
 ### Preparação inicial (uma vez)
 
 O repositório do projeto é [GuilhermeWiizi/valordafipe](https://github.com/GuilhermeWiizi/valordafipe),

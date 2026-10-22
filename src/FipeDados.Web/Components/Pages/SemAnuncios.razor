@@ -7,29 +7,36 @@
              Path="/sem-anuncios" />
 
 <section class="ad-free-plan" aria-labelledby="ad-free-title">
-    <span class="plan-icon"><Icon Name="shield" Size="32" /></span>
     <span class="plan-eyebrow">VALORDAFIPE · PLANO SEM ANÚNCIOS</span>
-    <h1 id="ad-free-title">Mais espaço para <span>suas decisões.</span></h1>
-    <p class="plan-intro">Pesquise preços e compare veículos com uma experiência mais tranquila.</p>
-    <div class="plan-benefits">
-        <article><Icon Name="shield" Size="24" /><h2>Sem publicidade</h2><p>Consulte os preços e o histórico sem anúncios nas páginas.</p></article>
-        <article><Icon Name="search" Size="24" /><h2>Sem estas ofertas</h2><p>Continue suas pesquisas e comparações sem convites para conhecer o plano.</p></article>
-        <article><Icon Name="chart" Size="24" /><h2>Toda a informação</h2><p>Preços, gráficos, rankings e comparações continuam disponíveis para ajudar você a decidir.</p></article>
-    </div>
-    <div class="plan-prices">
+    <h1 id="ad-free-title">Consulte a Tabela Fipe <span>sem anúncios.</span></h1>
+    <p class="plan-intro">Mais foco para pesquisar preços, acompanhar o histórico e comparar veículos.</p>
+    <p class="plan-payment-note"><Icon Name="shield" Size="17" /> Pagamento único por Pix · Sem renovação automática</p>
+    <div class="plan-prices" aria-label="Escolha seu plano">
         @foreach (var plano in Pagamentos.Planos)
         {
-            <article class="plan-price">
+            <article class="plan-price @(plano.Codigo == maiorEconomia ? "plan-price-featured" : "")">
+                @if (plano.Codigo == maiorEconomia)
+                {
+                    <span class="plan-best-value">Maior economia</span>
+                }
                 <h2>@plano.Nome</h2>
                 <p class="plan-total">@plano.Valor.ToString("C", Pt)</p>
                 <p>Pagamento único · @(plano.Meses == 1 ? "1 mês" : $"{plano.Meses} meses")</p>
+                @if (plano.Meses > 1)
+                {
+                    <p class="plan-monthly">Equivalente a @((plano.Valor / plano.Meses).ToString("C", Pt))/mês</p>
+                    @if (Economia(plano) > 0)
+                    {
+                        <p class="plan-saving">Economize @Economia(plano).ToString("C", Pt) em relação a @plano.Meses meses do mensal.</p>
+                    }
+                }
                 @if (disponivel)
                 {
-                    <a class="btn btn-primary" href="@($"/conta/pagamentos/novo?plano={plano.Codigo}")" data-enhance-nav="false">Escolher @plano.Nome.ToLowerInvariant()</a>
+                    <a class="btn @(plano.Codigo == maiorEconomia ? "btn-primary" : "btn-outline-primary") plan-checkout" href="@($"/conta/pagamentos/novo?plano={plano.Codigo}")" data-plan-source="planos" data-plan-code="@plano.Codigo" data-enhance-nav="false">Contratar @plano.Nome.ToLowerInvariant()</a>
                 }
                 else
                 {
-                    <button class="btn btn-outline-primary" disabled>Contratação indisponível</button>
+                    <button class="btn btn-outline-primary plan-checkout" disabled>Contratação indisponível</button>
                 }
             </article>
         }
@@ -38,7 +45,12 @@
         <strong>@(disponivel ? "Pix pelo Mercado Pago, com liberação automática" : "Contratação temporariamente indisponível")</strong>
         <p>O acesso começa após a confirmação do pagamento pelo Mercado Pago. Você acompanha o pedido na sua conta. Sem renovação automática.</p>
     </div>
-    <a class="btn btn-primary" href="@Retorno">Voltar à consulta <Icon Name="arrow" Size="17" /></a>
+    <div class="plan-benefits">
+        <article><Icon Name="shield" Size="24" /><h2>Sem publicidade</h2><p>Consulte os preços e o histórico sem anúncios nas páginas.</p></article>
+        <article><Icon Name="search" Size="24" /><h2>Sem ofertas do plano</h2><p>Continue suas pesquisas e comparações sem convites para conhecer o plano.</p></article>
+        <article><Icon Name="chart" Size="24" /><h2>Toda a informação</h2><p>Preços, gráficos, rankings e comparações continuam disponíveis para ajudar você a decidir.</p></article>
+    </div>
+    <a class="plan-back-link" href="@Retorno">Voltar à consulta <Icon Name="arrow" Size="17" /></a>
     <p class="plan-free-note">Você pode continuar usando as consultas gratuitas, sem criar uma conta.</p>
 </section>
 
@@ -47,5 +59,13 @@
     private string Retorno => ContaUrls.Retorno(ReturnUrl, "/consultar-tabela-fipe");
     private static readonly System.Globalization.CultureInfo Pt = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
     private bool disponivel;
-    protected override async Task OnInitializedAsync() => disponivel = await Cobrancas.DisponivelAsync();
+    private string? maiorEconomia;
+    private decimal Economia(PlanoPagamento plano) => (Pagamentos.Planos.Single(p => p.Meses == 1).Valor * plano.Meses) - plano.Valor;
+
+    protected override async Task OnInitializedAsync()
+    {
+        maiorEconomia = Pagamentos.Planos.Where(p => p.Meses > 1 && Economia(p) > 0)
+            .MinBy(p => p.Valor / p.Meses)?.Codigo;
+        disponivel = await Cobrancas.DisponivelAsync();
+    }
 }

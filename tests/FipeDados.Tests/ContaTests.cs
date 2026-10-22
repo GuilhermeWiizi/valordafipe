@@ -116,7 +116,9 @@ public class ContaTests
             var anonimo = Cliente(app);
             var home = await Texto(anonimo, "/");
             Assert.Contains("href=\"/conta/entrar\"", home);
-            Assert.Contains("Criar conta", home);
+            Assert.Contains("Remover anúncios", home);
+            Assert.DoesNotContain("Criar conta", home);
+            Assert.Contains("Suas consultas, sem anúncios.", home);
             Assert.Contains($"adsbygoogle.js?client={AdSense}", home);
             // Bloco real no espaço de destaque, com o gráfico original guardado para quando vier sem anúncio.
             Assert.Contains("data-ad-placement=\"home-destaque\"", home);
@@ -133,6 +135,13 @@ public class ContaTests
             Assert.Contains("noindex, follow", entrar);
             Assert.DoesNotContain("rel=\"canonical\"", entrar);
 
+            // A escolha chega ao cadastro pelo login, com o plano preservado no retorno.
+            const string checkout = "/conta/pagamentos/novo?plano=anual";
+            var loginPlano = Local(await anonimo.GetAsync(checkout));
+            var entrarPlano = await Texto(anonimo, loginPlano);
+            var cadastroPlano = $"/conta/cadastrar?ReturnUrl={Uri.EscapeDataString(checkout)}";
+            Assert.Contains($"href=\"{cadastroPlano}\"", entrarPlano);
+
             // Cadastro: validação sem reexibir senha; depois conta criada e sessão aberta.
             var cliente = Cliente(app);
             var invalido = await Postar(cliente, "/conta/cadastrar", "cadastrar", ("Input.Email", email), ("Input.Senha", senha), ("Input.Confirmacao", "não confere"));
@@ -143,8 +152,8 @@ public class ContaTests
             var curta = await Html(await Postar(cliente, "/conta/cadastrar", "cadastrar", ("Input.Email", email), ("Input.Senha", "curta"), ("Input.Confirmacao", "curta")));
             Assert.Contains("A senha precisa ter de 8 a 100 caracteres.", curta);
 
-            var criado = await Postar(cliente, "/conta/cadastrar?ReturnUrl=%2Fsobre", "cadastrar", ("Input.Email", email), ("Input.Senha", senha), ("Input.Confirmacao", senha));
-            Assert.Equal("/sobre", Local(criado));
+            var criado = await Postar(cliente, cadastroPlano, "cadastrar", ("Input.Email", email), ("Input.Senha", senha), ("Input.Confirmacao", senha));
+            Assert.Equal(checkout, Local(criado));
             // sign_up vai para a próxima página por cookie lido no navegador, sem tocar no HTML cacheado.
             Assert.Contains(criado.Headers.GetValues("Set-Cookie"), c => c.StartsWith($"{Analytics.CookieEvento}=sign_up;", StringComparison.Ordinal));
             var conta = await Texto(cliente, "/conta");
@@ -174,7 +183,11 @@ public class ContaTests
             Assert.DoesNotContain("senha errada", errado);
             var login = await Postar(cliente, "/conta/entrar?ReturnUrl=%2F%2Fevil.example", "entrar", ("Input.Email", email), ("Input.Senha", senha), ("Input.Lembrar", "true"));
             Assert.Equal("/", Local(login)); // ReturnUrl externo é ignorado.
-            Assert.DoesNotContain("adsbygoogle", await Texto(cliente, "/"));
+            var homePaga = await Texto(cliente, "/");
+            Assert.DoesNotContain("adsbygoogle", homePaga);
+            Assert.DoesNotContain("Remover anúncios", homePaga);
+            Assert.DoesNotContain("Suas consultas, sem anúncios.", homePaga);
+            Assert.Contains("Meu plano", homePaga);
             Assert.Contains("Sem anúncios", await Texto(cliente, "/conta"));
             Assert.Contains("adsbygoogle", await Texto(anonimo, "/"));
 

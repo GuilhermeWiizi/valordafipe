@@ -13,6 +13,7 @@
         </Fallback>
     </Anuncio>
 </section>
+<ChamadaPlano />
 <section class="market-section" aria-labelledby="ranking-title">
     <div class="section-heading"><div><div class="page-eyebrow">MOVIMENTOS DO MÊS</div><h2 id="ranking-title">Quem subiu. Quem caiu.</h2></div><nav class="segmented-control" aria-label="Filtrar ranking por tipo"><a class="@(tipo is null ? "selected" : "")" aria-current="@(tipo is null ? "true" : null)" href="@Filtro(null)">Todos</a><a class="@(tipo == TipoVeiculo.Carro ? "selected" : "")" aria-current="@(tipo == TipoVeiculo.Carro ? "true" : null)" href="@Filtro(TipoVeiculo.Carro)"><Icon Name="car" Size="16" /> Carros</a><a class="@(tipo == TipoVeiculo.Moto ? "selected" : "")" aria-current="@(tipo == TipoVeiculo.Moto ? "true" : null)" href="@Filtro(TipoVeiculo.Moto)"><Icon Name="bike" Size="16" /> Motos</a></nav></div>
     @if (erro)

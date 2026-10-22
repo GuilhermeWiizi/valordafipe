@@ -1,30 +1,37 @@
 @inject IOptions<AnunciosOptions> Anuncios
+@inject NavigationManager Nav
 
 @if (exibirMock)
 {
-    <aside class="ad-preview @Modificadores" aria-label="Publicidade demonstrativa" data-ad-placement="@Posicao">
-        <div class="ad-preview-label"><span>Publicidade</span><span class="ad-preview-badge">Demonstração</span></div>
-        <div class="ad-preview-creative">
-            <span class="ad-preview-symbol" aria-hidden="true"><Icon Name="car" Size="34" /></span>
-            <div class="ad-preview-copy">
-                <span class="ad-preview-brand">AUTO EXEMPLO · ANUNCIANTE FICTÍCIO</span>
-                <p class="ad-preview-title">Seu próximo carro começa com uma boa escolha.</p>
-                <p class="ad-preview-description">Um exemplo de anúncio para você avaliar este espaço.</p>
+    <div class="ad-placement @Modificadores">
+        <aside class="ad-preview @Modificadores" aria-label="Publicidade demonstrativa" data-ad-placement="@Posicao">
+            <div class="ad-preview-label"><span>Publicidade</span><span class="ad-preview-badge">Demonstração</span></div>
+            <div class="ad-preview-creative">
+                <span class="ad-preview-symbol" aria-hidden="true"><Icon Name="car" Size="34" /></span>
+                <div class="ad-preview-copy">
+                    <span class="ad-preview-brand">AUTO EXEMPLO · ANUNCIANTE FICTÍCIO</span>
+                    <p class="ad-preview-title">Seu próximo carro começa com uma boa escolha.</p>
+                    <p class="ad-preview-description">Um exemplo de anúncio para você avaliar este espaço.</p>
+                </div>
+                <span class="ad-preview-action" aria-hidden="true">Conhecer opções <Icon Name="external" Size="14" /></span>
             </div>
-            <span class="ad-preview-action" aria-hidden="true">Conhecer opções <Icon Name="external" Size="14" /></span>
-        </div>
-    </aside>
+        </aside>
+        <p class="ad-plan-link">Prefere consultar sem anúncios? <a href="@LinkPlano" data-plan-source="@($"anuncio:{Posicao}")">Veja os planos</a></p>
+    </div>
 }
 else if (bloco is not null)
 {
     @* display: contents mantém o espaço como item do grid/flex da página. Sem anúncio para
        o espaço (data-ad-status="unfilled"), o bloco some e o conteúdo original volta. *@
     <div class="ad-host">
-        <aside class="ad-preview ad-real @Modificadores" aria-label="Publicidade" data-ad-placement="@Posicao">
-            <div class="ad-preview-label"><span>Publicidade</span></div>
-            <ins class="adsbygoogle" style="display:block" data-ad-client="@Anuncios.Value.AdSenseClientId" data-ad-slot="@bloco"
-                 data-ad-format="auto" data-full-width-responsive="true"></ins>
-        </aside>
+        <div class="ad-placement @Modificadores">
+            <aside class="ad-preview ad-real @Modificadores" aria-label="Publicidade" data-ad-placement="@Posicao">
+                <div class="ad-preview-label"><span>Publicidade</span></div>
+                <ins class="adsbygoogle" style="display:block" data-ad-client="@Anuncios.Value.AdSenseClientId" data-ad-slot="@bloco"
+                     data-ad-format="auto" data-full-width-responsive="true"></ins>
+            </aside>
+            <p class="ad-plan-link">Prefere consultar sem anúncios? <a href="@LinkPlano" data-plan-source="@($"anuncio:{Posicao}")">Veja os planos</a></p>
+        </div>
         @if (Fallback is not null)
         {
             <div class="ad-fallback">@Fallback</div>
@@ -45,6 +52,7 @@ else
 
     private bool exibirMock;
     private string? bloco;
+    private string LinkPlano => $"/sem-anuncios?ReturnUrl={Uri.EscapeDataString(new Uri(Nav.Uri).PathAndQuery)}";
     private string Modificadores => $"{(Destaque ? "ad-preview--hero" : "")} {(Compacto ? "ad-preview--compact" : "")}";
 
     protected override async Task OnParametersSetAsync()

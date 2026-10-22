@@ -1,6 +1,27 @@
 // Eventos do GA4 que a medição otimizada não captura. Só é carregado quando a tag está ativa
 // (produção, fora do painel administrativo); o gtag vem do <head>.
 
+const chaveOrigemPlano = "vf_ga_origem_plano";
+let ultimaOrigemPlano = "direto";
+const checkoutsMedidos = new WeakSet();
+
+function origemPlano() {
+    try { return sessionStorage.getItem(chaveOrigemPlano) || ultimaOrigemPlano; }
+    catch { return ultimaOrigemPlano; }
+}
+
+// Mantém a origem da oferta durante a escolha do plano, login e cadastro na mesma aba.
+document.addEventListener("click", event => {
+    const link = event.target.closest?.("a[data-plan-source]");
+    if (!link) return;
+    const origem = link.dataset.planSource;
+    if (origem !== "planos") {
+        ultimaOrigemPlano = origem;
+        try { sessionStorage.setItem(chaveOrigemPlano, origem); } catch { /* A medição continua sem storage. */ }
+    }
+    gtag("event", "plan_offer_click", { placement: origem, offer_source: origemPlano(), plan_code: link.dataset.planCode });
+});
+
 // "Baixar CSV" é um link data:, que a medição de downloads ignora.
 document.addEventListener("click", event => {
     const link = event.target.closest?.("[data-historico-csv]");
@@ -24,11 +45,22 @@ function compraAprovada() {
     try { if (localStorage.getItem(chave)) return; localStorage.setItem(chave, "1"); } catch { /* Sem storage, o transaction_id ainda deduplica no GA. */ }
     const valor = Number(status.dataset.gaValor);
     gtag("event", "purchase", {
-        transaction_id: id, value: valor, currency: "BRL",
+        transaction_id: id, value: valor, currency: "BRL", offer_source: origemPlano(),
         items: [{ item_id: status.dataset.gaPlano, item_name: status.dataset.gaPlanoNome, price: valor, quantity: 1 }]
     });
 }
 
-function eventosDaPagina() { eventoPendente(); compraAprovada(); }
+function inicioCheckout() {
+    const plano = document.querySelector("[data-ga-checkout]");
+    if (!plano || checkoutsMedidos.has(plano)) return;
+    checkoutsMedidos.add(plano);
+    const valor = Number(plano.dataset.gaValor);
+    gtag("event", "begin_checkout", {
+        value: valor, currency: "BRL", offer_source: origemPlano(),
+        items: [{ item_id: plano.dataset.gaCheckout, item_name: plano.dataset.gaPlanoNome, price: valor, quantity: 1 }]
+    });
+}
+
+function eventosDaPagina() { eventoPendente(); inicioCheckout(); compraAprovada(); }
 eventosDaPagina();
 if (typeof Blazor !== "undefined") Blazor.addEventListener("enhancedload", eventosDaPagina);

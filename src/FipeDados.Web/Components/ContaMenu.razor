@@ -3,12 +3,20 @@
 
 <div class="account-menu">
     <AuthorizeView>
-        <Authorized>
+        <Authorized Context="auth">
             <a class="account-menu-link" href="@ContaUrls.MinhaConta"><Icon Name="user" Size="16" /><span>Minha conta</span></a>
+            @if (PlanoUsuario.SemAnuncios(auth.User, DateTime.UtcNow))
+            {
+                <a class="account-menu-cta" href="/conta"><Icon Name="shield" Size="16" /> Meu plano</a>
+            }
+            else
+            {
+                <a class="account-menu-cta" href="/sem-anuncios" data-plan-source="topo"><Icon Name="shield" Size="16" /> Remover anúncios</a>
+            }
         </Authorized>
         <NotAuthorized>
             <a class="account-menu-link" href="@ContaUrls.ComRetorno(ContaUrls.Entrar, atual)">Entrar</a>
-            <a class="account-menu-cta" href="@ContaUrls.ComRetorno(ContaUrls.Cadastrar, atual)">Criar conta</a>
+            <a class="account-menu-cta" href="/sem-anuncios" data-plan-source="topo"><Icon Name="shield" Size="16" /> Remover anúncios</a>
         </NotAuthorized>
     </AuthorizeView>
 </div>

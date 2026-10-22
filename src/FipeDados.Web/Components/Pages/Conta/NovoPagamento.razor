@@ -13,7 +13,8 @@
     else
     {
         <h2>@plano.Nome · @(plano.Meses == 1 ? "1 mês" : $"{plano.Meses} meses")</h2>
-        <p class="payment-total">@plano.Valor.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"))</p>
+        <p class="payment-total" data-ga-checkout="@(disponivel ? plano.Codigo : null)" data-ga-valor="@plano.Valor.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+           data-ga-plano-nome="@plano.Nome">@plano.Valor.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"))</p>
         <p>Pagamento integral por Pix pelo Mercado Pago, com confirmação automática. O período começa após a confirmação do pagamento. Se você já tem acesso ativo, os meses são acrescentados ao vencimento.</p>
         <p>Todos os planos removem anúncios e ofertas. Não há renovação automática.</p>
         @if (!string.IsNullOrEmpty(Erro)) { <p role="alert" class="payment-error">@Erro</p> }
