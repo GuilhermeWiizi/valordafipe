@@ -190,6 +190,11 @@ public class SeoTests
             // Código com vários anos vai ao modelo (permanente); com um único ano, direto ao veículo (temporário).
             Assert.Equal((HttpStatusCode.MovedPermanently, modelPath), await Redirect("/codigo-fipe/000001-0"));
             Assert.Equal((HttpStatusCode.Found, brandPath + "/modelo-01/2025-gasolina"), await Redirect("/codigo-fipe/0000020"));
+            // Site anterior do domínio: /make/{tipo}/{marca}[/{código}] sempre com 301, mantendo a query.
+            Assert.Equal((HttpStatusCode.MovedPermanently, brandPath), await Redirect("/make/1/marca-e-cia"));
+            Assert.Equal((HttpStatusCode.MovedPermanently, brandPath + "?utm_source=teste"), await Redirect("/make/1/Marca-E-Cia?utm_source=teste"));
+            Assert.Equal((HttpStatusCode.MovedPermanently, modelPath), await Redirect("/make/1/marca-e-cia/000001-0"));
+            Assert.Equal((HttpStatusCode.MovedPermanently, brandPath + "/modelo-01/2025-gasolina"), await Redirect("/make/1/qualquer-marca/0000020"));
 
             foreach (var path in new[] { brandPath, modelPath })
             {
@@ -203,7 +208,9 @@ public class SeoTests
             }
             foreach (var path in new[] { "/inexistente", "/veiculo/2147483647", "/marca/2147483647", "/modelo/2147483647", "/not-found",
                          "/tabela-fipe/carros/inexistente", "/tabela-fipe/caminhoes/marca-e-cia", "/tabela-fipe/motos/marca-e-cia",
-                         modelPath + "-x", modelPath + "/1900-gasolina", "/codigo-fipe/999999-9", "/codigo-fipe/abc" })
+                         modelPath + "-x", modelPath + "/1900-gasolina", "/codigo-fipe/999999-9", "/codigo-fipe/abc",
+                         "/make/2/marca-e-cia", "/make/3/marca-e-cia", "/make/2/sem-cobertura", "/make/3/marca-e-cia/000001-0",
+                         "/make/1/marca-e-cia/999999-9", "/make/1/marca-e-cia/abc" })
             {
                 var response = await client.GetAsync(path);
                 Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);

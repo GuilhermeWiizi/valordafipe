@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Xml.Linq;
+using FipeDados.Core.Enums;
 
 namespace FipeDados.Web.Seo;
 
@@ -57,7 +58,21 @@ public static class SeoEndpoints
             => CatalogPaths.NormalizeCode(codigo) is { } code && await catalog.Code(code, ct) is { } target
                 ? Results.Redirect(target.Path, permanent: target.Permanent)
                 : Results.NotFound());
+
+        // URLs do site anterior no domínio (/make/{tipo}/{marca}[/{código}], tipo 1 = carros, 2 = motos):
+        // ainda recebem links e rastreio, então vão sempre com 301 para a página equivalente.
+        app.MapGet("/make/{type:int}/{brand}", async (int type, string brand, HttpRequest request, PublicCatalog catalog, CancellationToken ct)
+            => LegacyType(type) is { } tipo && await catalog.Brand(tipo, brand.ToLowerInvariant(), 1, ct) is { Count: > 0 } page
+                ? Results.Redirect(page.Brand.Path + request.QueryString, permanent: true)
+                : Results.NotFound());
+        app.MapGet("/make/{type:int}/{brand}/{codigo}", async (int type, string codigo, HttpRequest request, PublicCatalog catalog, CancellationToken ct)
+            => LegacyType(type) is not null && CatalogPaths.NormalizeCode(codigo) is { } code && await catalog.Code(code, ct) is { } target
+                ? Results.Redirect(target.Path + request.QueryString, permanent: true)
+                : Results.NotFound());
     }
+
+    private static TipoVeiculo? LegacyType(int type)
+        => Enum.IsDefined((TipoVeiculo)type) ? (TipoVeiculo)type : null;
 
     private static async Task<IResult> Moved(Task<string?> path, HttpRequest request)
         => await path is { } target ? Results.Redirect(target + request.QueryString, permanent: true) : Results.NotFound();
