@@ -53,10 +53,10 @@ public class CatalogModelSearchTests
         var modelo = new Modelo { Nome = "Modelo", CodigoFipe = 1, Marca = new Marca { Nome = "Marca", Tipo = TipoVeiculo.Carro, CodigoFipe = 1 } };
         f.Db.AddRange(modelo, new TabelaReferencia { Codigo = 1, Data = new(2026, 10, 1), Mes = "outubro/2026" });
         await f.Db.SaveChangesAsync();
-        f.Api.Anos = [new("2025 Gasolina", "2025-1"), new("Zero km Flex", "32000-5")];
+        f.Api.Anos = [new("2025 Gasolina", "2025-1"), new("32000 Flex", "32000-5")];
         var anos = await f.Service.ObterAnosAsync(modelo.Id);
         Assert.Equal(2, anos.Count); Assert.Equal(1, f.Api.Calls);
-        Assert.Equal("Zero km Flex", anos[0].Nome);
+        Assert.Equal("Zero KM Flex", anos[0].Nome); // A Fipe devolve o código 32000 no rótulo do zero km.
         Assert.Equal(anos, await f.Service.ObterAnosAsync(modelo.Id));
         Assert.Equal(1, f.Api.Calls);
         var vazio = new Modelo { Nome = "Sem anos", CodigoFipe = 2, Marca = modelo.Marca };

@@ -135,7 +135,7 @@ public class CatalogService : ICatalogService
                     Ano = ano,
                     ZeroKm = zeroKm,
                     Combustivel = comb,
-                    AnoLabel = item.Label.Trim()
+                    AnoLabel = FipeParsing.RotuloAno(item.Label.Trim())
                 });
             }
             await db.SaveChangesAsync(ct);

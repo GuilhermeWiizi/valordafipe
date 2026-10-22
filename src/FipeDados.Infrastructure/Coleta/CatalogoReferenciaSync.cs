@@ -52,7 +52,7 @@ public sealed class CatalogoReferenciaSync(IDbContextFactory<FipeDbContext> fact
             var (ano, combustivel, zeroKm) = FipeParsing.ParseAnoModelo(item.Value);
             var veiculo = await GarantirAsync<Veiculo>(v => v.ModeloId == modeloId && v.AnoModeloCodigo == item.Value,
                 () => new() { ModeloId = modeloId, AnoModeloCodigo = item.Value, Ano = ano, Combustivel = combustivel,
-                    ZeroKm = zeroKm, AnoLabel = item.Label.Trim() }, ct);
+                    ZeroKm = zeroKm, AnoLabel = FipeParsing.RotuloAno(item.Label.Trim()) }, ct);
             resultado.Add(new(veiculo.Id, veiculo.AnoLabel));
         }
         return resultado;

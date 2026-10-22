@@ -86,7 +86,7 @@ async Task<Veiculo> SelectNewVehicle()
         var year = years.Where(y => !existing.Contains(y.Value)).OrderBy(_ => Random.Shared.Next()).FirstOrDefault();
         if (year is null) continue;
         var parsed = FipeParsing.ParseAnoModelo(year.Value);
-        var vehicle = new Veiculo { Modelo = model, AnoModeloCodigo = year.Value, AnoLabel = year.Label.Trim(),
+        var vehicle = new Veiculo { Modelo = model, AnoModeloCodigo = year.Value, AnoLabel = FipeParsing.RotuloAno(year.Label.Trim()),
             Ano = parsed.Ano, ZeroKm = parsed.ZeroKm, Combustivel = parsed.Combustivel };
         db.Veiculos.Add(vehicle);
         await db.SaveChangesAsync(ct);
