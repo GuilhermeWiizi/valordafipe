@@ -5,7 +5,8 @@
 .history-heading p { font-size: var(--fd-text-body); color: #93a088; margin: 0; }
 .history-chart-toolbar { padding: 20px 25px 0; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
 .history-chart-toolbar > span { display: flex; align-items: center; gap: 8px; font-size: var(--fd-text-ui); color: #849879; }
-.history-chart { display: block; min-height: 340px; padding: 15px 20px 5px; }
+.history-chart { min-height: 340px; padding: 15px 20px 5px; }
+.history-chart > fipe-historico { display: block; }
 .history-table-heading { padding: 23px 25px; border-block: 1px solid #edf1e8; background: #fafcf7; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .history-table-heading h3 { font-size: 15px; font-weight: 700; margin: 0 0 6px; }
 .history-table-heading p { font-size: var(--fd-text-body); color: #91a083; margin: 0; line-height: 1.8; }

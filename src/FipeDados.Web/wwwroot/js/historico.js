@@ -101,8 +101,12 @@ class FipeHistorico extends HTMLElement {
             tooltip: { y: { formatter: v => v == null ? "Sem preço" : percentual ? decimal.format(v) + "%" : moeda.format(v) } }
         };
         if (this.#grafico) { await this.#grafico.updateOptions(opcoes, true, false); return; }
-        this.replaceChildren();
-        this.#grafico = new ApexCharts(this, opcoes);
+        // Shadow DOM: o refresh aprimorado do Blazor (Nav.Refresh após completar o histórico)
+        // mescla o <head> e os filhos do elemento, removendo o CSS que o ApexCharts injeta e
+        // deixando tooltips e rótulos soltos. Na shadow root o ApexCharts injeta o CSS ali dentro.
+        const alvo = document.createElement("div");
+        (this.shadowRoot ?? this.attachShadow({ mode: "open" })).replaceChildren(alvo);
+        this.#grafico = new ApexCharts(alvo, opcoes);
         await this.#grafico.render();
     }
 

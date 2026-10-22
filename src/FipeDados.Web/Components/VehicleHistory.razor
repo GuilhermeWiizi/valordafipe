@@ -5,7 +5,7 @@
 <section class="vehicle-history" aria-labelledby="history-heading">
     <header class="history-heading"><div><span class="history-eyebrow">COTAÇÃO A COTAÇÃO</span><h2 id="history-heading">A história por trás do preço</h2><p data-historico-resumo>@Resumo(linhas)</p></div><div class="segmented-control" role="group" aria-label="Período do histórico"><button type="button" data-periodo="6" aria-pressed="false">6 meses</button><button type="button" data-periodo="12" aria-pressed="false">12 meses</button><button type="button" class="selected" data-periodo="" aria-pressed="true">Todo o histórico</button></div></header>
     <div class="history-chart-toolbar"><span><Icon Name="chart" Size="16" /><span data-historico-medida>Preço de referência em reais</span></span><div class="segmented-control" role="group" aria-label="Medida do histórico"><button type="button" class="selected" data-medida="preco" aria-pressed="true">Preço (R$)</button><button type="button" data-medida="variacao" aria-pressed="false">Variação (%)</button></div></div>
-    <fipe-historico class="history-chart" data-serie="@serieJson" role="img" aria-label="@($"Gráfico do preço Fipe de {Detail.Marca} {Detail.Modelo} {Detail.AnoLabel}")"><div class="history-chart-placeholder"></div></fipe-historico>
+    <div class="history-chart"><fipe-historico data-serie="@serieJson" role="img" aria-label="@($"Gráfico do preço Fipe de {Detail.Marca} {Detail.Modelo} {Detail.AnoLabel}")"></fipe-historico></div>
     @if (Detail.Resumo is { ValorAtual: > 0 })
     {
         <AnuncioMock Posicao="veiculo-apos-grafico" />
