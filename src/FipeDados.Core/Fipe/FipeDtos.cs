@@ -45,4 +45,5 @@ public record FipeValorQuery(
     int AnoNumerico,            // ano puro (2011) ou 32000 para zero km
     int CodigoTipoCombustivel,
     string TipoConsulta = "tradicional",
-    string? ModeloCodigoExterno = null);
+    string? ModeloCodigoExterno = null,
+    DateOnly? DataReferencia = null);

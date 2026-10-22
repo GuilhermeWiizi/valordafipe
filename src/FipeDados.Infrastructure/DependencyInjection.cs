@@ -66,6 +66,13 @@ public static class DependencyInjection
             });
         });
 
+        services.AddSingleton<ParallelumEstado>();
+        services.AddHttpClient<ParallelumFipeClient>(client =>
+        {
+            client.BaseAddress = new Uri(ParallelumFipeClient.BaseUrl);
+            client.Timeout = TimeSpan.FromSeconds(30);
+            client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+        });
         services.AddHttpClient<IFipeApiClient, FipeApiClient>((sp, client) =>
         {
             var opt = sp.GetRequiredService<IOptions<FipeApiOptions>>().Value;

@@ -24,15 +24,17 @@ public class FipeApiClient : IFipeApiClient
     private readonly ILogger<FipeApiClient> _logger;
     private readonly FipeRequestGate _requestGate;
     private readonly FipeApiOptions _options;
+    private readonly ParallelumFipeClient? _alternativa;
 
     public FipeApiClient(HttpClient http, RateLimiter rateLimiter, ILogger<FipeApiClient> logger,
-        FipeRequestGate requestGate, IOptions<FipeApiOptions> options)
+        FipeRequestGate requestGate, IOptions<FipeApiOptions> options, ParallelumFipeClient? alternativa = null)
     {
         _http = http;
         _rateLimiter = rateLimiter;
         _logger = logger;
         _requestGate = requestGate;
         _options = options.Value;
+        _alternativa = alternativa;
     }
 
     public async Task<IReadOnlyList<FipeMes>> ConsultarTabelasReferenciaAsync(CancellationToken ct = default)
@@ -83,7 +85,7 @@ public class FipeApiClient : IFipeApiClient
                 modeloCodigoExterno = ""
             };
 
-        var resp = await PostAsync<FipeValorResponse>("ConsultarValorComTodosParametros", body, ct);
+        var resp = await PostAsync<FipeValorResponse>("ConsultarValorComTodosParametros", body, ct, q.DataReferencia);
         if (resp is null || !resp.TemValor)
         {
             if (!string.IsNullOrWhiteSpace(resp?.Erro))
@@ -93,27 +95,50 @@ public class FipeApiClient : IFipeApiClient
         return resp;
     }
 
-    private async Task<T?> PostAsync<T>(string endpoint, object body, CancellationToken ct)
+    private async Task<T?> PostAsync<T>(string endpoint, object body, CancellationToken ct, DateOnly? referenciaEsperada = null)
     {
         using var turn = await _requestGate.AcquireAsync(ct);
         var json = JsonSerializer.Serialize(body, JsonOpts);
-        for (var attempt = 0; ; attempt++)
+        var podeAlternar = _options.ParallelumHabilitada && _alternativa is not null;
+        if (podeAlternar && _alternativa!.DiretaEmPausa)
+            return await ConsultarAlternativaAsync<T>(endpoint, json, referenciaEsperada, ct);
+        try
         {
-            using var resp = await SendAsync(endpoint, json, ct);
-            if (resp.StatusCode != HttpStatusCode.TooManyRequests)
-                return await ReadAsync<T>(endpoint, resp, ct);
+            for (var attempt = 0; ; attempt++)
+            {
+                using var resp = await SendAsync(endpoint, json, ct);
+                if (resp.StatusCode != HttpStatusCode.TooManyRequests)
+                    return await ReadAsync<T>(endpoint, resp, ct);
 
-            var ra = resp.Headers.RetryAfter;
-            var retryAfter = ra?.Delta ?? (ra?.Date - DateTimeOffset.UtcNow);
-            var delay = retryAfter > TimeSpan.Zero ? retryAfter.Value
-                : TimeSpan.FromMilliseconds(Math.Max(1, _options.RateLimitDelay.TotalMilliseconds) * Math.Pow(2, Math.Min(attempt, 4)));
-            _requestGate.PauseFor(delay);
-            _logger.LogWarning("Fipe {Endpoint} retornou 429. Pausa compartilhada de {Segundos:N0}s; retomada {Tentativa}/{Maximo}.",
-                endpoint, delay.TotalSeconds, attempt + 1, _options.RateLimitRetries);
-            resp.Dispose(); // Libera a conexão durante a pausa.
-            if (attempt >= _options.RateLimitRetries) throw new FipeLimiteException(delay);
-            await _requestGate.WaitForRecoveryAsync(ct);
+                var ra = resp.Headers.RetryAfter;
+                var retryAfter = ra?.Delta ?? (ra?.Date - DateTimeOffset.UtcNow);
+                var delay = retryAfter > TimeSpan.Zero ? retryAfter.Value
+                    : TimeSpan.FromMilliseconds(Math.Max(1, _options.RateLimitDelay.TotalMilliseconds) * Math.Pow(2, Math.Min(attempt, 4)));
+                if (podeAlternar) throw new FipeLimiteException(delay);
+                _requestGate.PauseFor(delay);
+                _logger.LogWarning("Fipe {Endpoint} retornou 429. Pausa compartilhada de {Segundos:N0}s; retomada {Tentativa}/{Maximo}.",
+                    endpoint, delay.TotalSeconds, attempt + 1, _options.RateLimitRetries);
+                resp.Dispose(); // Libera a conexão durante a pausa.
+                if (attempt >= _options.RateLimitRetries) throw new FipeLimiteException(delay);
+                await _requestGate.WaitForRecoveryAsync(ct);
+            }
         }
+        catch (Exception ex) when (podeAlternar &&
+            (ex is HttpRequestException or FipeLimiteException or Polly.Timeout.TimeoutRejectedException or Polly.CircuitBreaker.BrokenCircuitException))
+        {
+            _alternativa!.PausarDireta((ex as FipeLimiteException)?.RetryAfter);
+            _logger.LogWarning("Consulta {Endpoint} indisponível na FIPE direta; usando a Parallelum.", endpoint);
+            return await ConsultarAlternativaAsync<T>(endpoint, json, referenciaEsperada, ct);
+        }
+    }
+
+    private async Task<T?> ConsultarAlternativaAsync<T>(string endpoint, string json, DateOnly? referenciaEsperada, CancellationToken ct)
+    {
+        using var lease = await _rateLimiter.AcquireAsync(1, ct);
+        if (!lease.IsAcquired) throw new InvalidOperationException("Limitador de taxa da Fipe não concedeu permissão.");
+        var resposta = await _alternativa!.ConsultarAsync(endpoint, json, referenciaEsperada, ct);
+        _logger.LogInformation("Consulta {Endpoint} atendida pela Parallelum.", endpoint);
+        return resposta is null ? default : JsonSerializer.Deserialize<T>(resposta, JsonOpts);
     }
 
     private async Task<HttpResponseMessage> SendAsync(string endpoint, string json, CancellationToken ct)

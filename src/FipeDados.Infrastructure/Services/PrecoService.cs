@@ -192,7 +192,8 @@ public class PrecoService : IPrecoService
                 AnoNumerico: anoNumerico,
                 CodigoTipoCombustivel: codigoComb,
                 TipoConsulta: usarCodigo ? "codigo" : "tradicional",
-                ModeloCodigoExterno: usarCodigo ? veiculo.CodigoFipe : null);
+                ModeloCodigoExterno: usarCodigo ? veiculo.CodigoFipe : null,
+                DataReferencia: tabela.Data);
 
             FipeValorResponse? resp;
             try

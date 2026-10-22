@@ -1,6 +1,7 @@
 using FipeDados.Core.Fipe;
 using FipeDados.Core.Models;
 using FipeDados.Core.Services;
+using System.Threading.Channels;
 using FipeDados.Web.Components;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.RenderTree;
@@ -12,7 +13,7 @@ namespace FipeDados.Tests;
 
 /// <summary>
 /// Ilha <see cref="ColetaHistorico"/> da página (SSR) do veículo: só consulta a Fipe depois de
-/// conectar, uma vez, e pede a página atualizada quando trouxe meses novos.
+/// conectar, repete falhas em segundo plano e atualiza a página ao concluir.
 /// </summary>
 public class VeiculoAutoHistoryTests
 {
@@ -47,22 +48,65 @@ public class VeiculoAutoHistoryTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task FalhaNaFonte_NaoRecarregaNemEntraEmLoop_RepeteSoAoPedir(bool filaCheia)
+    public async Task FalhaNaFonte_RepeteEmBackground_RespeitaEsperaEAtualizaUmaVez(bool filaCheia)
     {
         using var services = Services();
         await using var renderer = new IslandRenderer(services);
         var preco = services.GetRequiredService<FakePreco>();
-        Exception falha = filaCheia ? new FipeFilaCheiaException(TimeSpan.FromSeconds(30)) : new HttpRequestException("Fonte indisponível");
-        preco.Complete = _ => Task.FromResult(new ResultadoColeta(3, falha));
+        Exception falha = filaCheia ? new FipeFilaCheiaException(TimeSpan.FromSeconds(90)) : new HttpRequestException("Fonte indisponível");
+        preco.Complete = _ => Task.FromResult(preco.Calls.Count == 1 ? new ResultadoColeta(3, falha) : new(0, null));
         var ilha = await renderer.Show(veiculoId: 1);
-        await renderer.Dispatcher.InvokeAsync(ilha.Interactive);
+        var consulta = renderer.Dispatcher.InvokeAsync(ilha.Interactive);
+        var espera = await ilha.ProximaEspera();
+        Assert.Equal(TimeSpan.FromSeconds(filaCheia ? 90 : 30), espera.Atraso);
         await renderer.Dispatcher.InvokeAsync(ilha.Interactive);
         Assert.Single(preco.Calls);
-        Assert.Equal(0, services.GetRequiredService<TestNavigation>().Refreshes); // Página parcial não vira laço de recargas.
+        Assert.Equal(0, services.GetRequiredService<TestNavigation>().Refreshes);
 
-        await renderer.Dispatcher.InvokeAsync(ilha.Repetir);
-        await renderer.Dispatcher.InvokeAsync(ilha.Interactive);
+        espera.Terminar();
+        await consulta;
         Assert.Equal(2, preco.Calls.Count);
+        Assert.Equal(1, services.GetRequiredService<TestNavigation>().Refreshes); // Inclui os meses salvos antes da falha.
+    }
+
+    [Fact]
+    public async Task ExcecaoNaConsulta_RepeteAutomaticamenteSemEncerrarOCircuito()
+    {
+        using var services = Services();
+        await using var renderer = new IslandRenderer(services);
+        var preco = services.GetRequiredService<FakePreco>();
+        preco.Complete = _ => preco.Calls.Count == 1
+            ? throw new HttpRequestException("Fonte indisponível") : Task.FromResult(new ResultadoColeta(1, null));
+        var ilha = await renderer.Show(veiculoId: 1);
+        var consulta = renderer.Dispatcher.InvokeAsync(ilha.Interactive);
+        (await ilha.ProximaEspera()).Terminar();
+        await consulta;
+        Assert.Equal(2, preco.Calls.Count);
+        Assert.Equal(1, services.GetRequiredService<TestNavigation>().Refreshes);
+    }
+
+    [Fact]
+    public async Task FalhasSeguidas_AumentamEsperaAteCincoMinutos_SairCancelaRetentativa()
+    {
+        using var services = Services();
+        var renderer = new IslandRenderer(services);
+        var preco = services.GetRequiredService<FakePreco>();
+        preco.Complete = _ => Task.FromResult(new ResultadoColeta(0, new HttpRequestException("Fonte indisponível")));
+        var ilha = await renderer.Show(veiculoId: 1);
+        var consulta = renderer.Dispatcher.InvokeAsync(ilha.Interactive);
+        var atrasos = new[] { 30, 60, 120, 240, 300, 300 };
+        for (var i = 0; i < atrasos.Length; i++)
+        {
+            var espera = await ilha.ProximaEspera();
+            Assert.Equal(TimeSpan.FromSeconds(atrasos[i]), espera.Atraso);
+            Assert.Equal(i + 1, preco.Calls.Count);
+            if (i < atrasos.Length - 1) espera.Terminar();
+        }
+        await renderer.DisposeAsync();
+        await consulta;
+        Assert.True(preco.Token.IsCancellationRequested);
+        Assert.Equal(atrasos.Length, preco.Calls.Count);
+        Assert.Equal(0, services.GetRequiredService<TestNavigation>().Refreshes);
     }
 
     [Fact]
@@ -88,15 +132,30 @@ public class VeiculoAutoHistoryTests
         .BuildServiceProvider();
 
     // Executa o ciclo real da ilha, sem markup, controlando quando ela "conecta".
+#pragma warning disable BL0006
     public sealed class TestIsland : ColetaHistorico
     {
+        private readonly Channel<Espera> esperas = Channel.CreateUnbounded<Espera>();
         protected override void BuildRenderTree(RenderTreeBuilder builder) { }
         protected override Task OnAfterRenderAsync(bool firstRender) => Task.CompletedTask;
         public Task Interactive() => base.OnAfterRenderAsync(false);
-        public new void Repetir() => base.Repetir();
+        public Task<Espera> ProximaEspera() => esperas.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        protected override Task AguardarNovaTentativaAsync(TimeSpan atraso, CancellationToken ct)
+        {
+            var espera = new Espera(atraso);
+            esperas.Writer.TryWrite(espera);
+            return espera.Conclusao.WaitAsync(ct);
+        }
     }
 
-#pragma warning disable BL0006
+    public sealed class Espera(TimeSpan atraso)
+    {
+        private readonly TaskCompletionSource concluida = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TimeSpan Atraso { get; } = atraso;
+        public Task Conclusao => concluida.Task;
+        public void Terminar() => concluida.TrySetResult();
+    }
+
     private sealed class IslandRenderer(IServiceProvider services) : Renderer(services, services.GetRequiredService<ILoggerFactory>())
     {
         public override Dispatcher Dispatcher { get; } = Dispatcher.CreateDefault();

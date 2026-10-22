@@ -24,6 +24,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ColetaMensal__Habilitada: ${COLETA_MENSAL_HABILITADA:-true}
+      Fipe__ParallelumHabilitada: ${FIPE_PARALLELUM_HABILITADA:-false}
       ASPNETCORE_HTTP_PORTS: "8080"
       ConnectionStrings__FipeDb: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-fipedados};Username=${POSTGRES_USER:-fipe};Password=${POSTGRES_PASSWORD:-fipe}"
       Seo__SiteUrl: ${SEO_SITE_URL:-https://valordafipe.com.br}

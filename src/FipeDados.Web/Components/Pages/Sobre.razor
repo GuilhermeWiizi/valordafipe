@@ -12,6 +12,7 @@
     <h2>Fonte e referência dos preços</h2>
     <p>Os valores são obtidos do <a href="https://veiculos.fipe.org.br/" target="_blank" rel="noopener noreferrer">site da Tabela Fipe</a> e armazenados em uma base própria. Cada preço corresponde a uma tabela mensal, modelo, ano e combustível. O mês de referência aparece junto ao valor: o último preço disponível pode não ser o do mês corrente.</p>
     <h2>Histórico e atualização</h2>
+    <p>Em caso de indisponibilidade da consulta direta, os preços também podem ser obtidos pela <a href="https://fipe.api.br/" target="_blank" rel="noopener noreferrer">API Parallelum</a>, que mantém uma base com os valores da Tabela Fipe. O veículo e o mês de referência são conferidos antes de armazenar cada cotação.</p>
     <p>A consulta exibe até 24 referências mensais, conforme os dados disponíveis. Ao abrir um veículo, a página consulta automaticamente na Fipe os meses que faltam no histórico, reutilizando os preços já armazenados. O catálogo usa os dados da base. Falhas de acesso à fonte ou meses sem cotação podem deixar lacunas; não estimamos os valores ausentes.</p>
     <h2>Como interpretar as variações</h2>
     <p>A variação percentual entre dois valores é calculada por (valor final − valor inicial) ÷ valor inicial × 100. Na página individual, o indicador entre cotações usa os dois últimos preços disponíveis, que podem não ser de meses consecutivos; a variação de aproximadamente 12 meses usa o preço disponível na data ou antes da data de comparação.</p>

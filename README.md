@@ -310,8 +310,17 @@ reutilizados. A busca pode levar alguns segundos e mostra um indicador de andame
   compartilhada entre consultas. Em HTTP 429, aguarda `Retry-After` ou 60 segundos (com
   espera crescente) e tenta a mesma requisição mais duas vezes. A pausa vale para todas
   as consultas daquele processo e pode ser cancelada ao sair da página. Se a fonte
-  continuar bloqueando, a tela informa o limite e permite tentar novamente, preservando
-  os preços já salvos. Respostas vazias ou inválidas são falhas, não meses sem cotação.
+  continuar bloqueando, o histórico tenta novamente silenciosamente após 30 s, 1, 2, 4 e
+  até 5 minutos, respeitando esperas maiores informadas pela fonte. As tentativas param
+  ao sair da página; preços já salvos são preservados e a página atualiza uma vez ao concluir.
+  Respostas vazias ou inválidas são falhas, não meses sem cotação.
+- **Fonte alternativa (opcional):** `Fipe:ParallelumHabilitada=true` (Docker:
+  `FIPE_PARALLELUM_HABILITADA=true`) usa a [Parallelum v2](https://deividfortuna.github.io/fipe/v2/)
+  quando a FIPE direta está bloqueada ou indisponível. Compartilha fila e limite de taxa,
+  pausa o acesso direto por pelo menos 5 minutos e valida veículo e mês antes de gravar.
+  A modalidade sem token permite 500 chamadas por dia para toda a VPS: ao receber 429,
+  respeita `Retry-After` ou aguarda 24h sem novas chamadas à alternativa. Não há contratação
+  automática de plano. Falhas e bloqueios da alternativa não são gravados como ausência de preço.
 - **Job de fundo:** `ReferenceTableRefreshService` mantém as tabelas de referência (24 meses)
   atualizadas e pré-carrega as marcas no startup.
 
@@ -716,7 +725,7 @@ a combinação real de modelo/ano encontrada na fonte.
   cache para visitantes anônimos, variando só por `tipo` e `pagina`. Veículo com histórico
   incompleto (ilha interativa) não é armazenado.
 - **Fila da Fipe:** no máximo `Fipe:MaxFilaEspera` (20) consultas esperando; acima disso a
-  página avisa e oferece nova tentativa. Uma coleta por veículo de cada vez; a coleta mensal
+  histórico aguarda e tenta novamente em segundo plano. Uma coleta por veículo de cada vez; a coleta mensal
   não entra no teto.
 - **Banco:** o pool do Npgsql fica em 40 conexões quando a connection string não define
   `Maximum Pool Size`, abaixo do limite padrão de 100 do PostgreSQL.
