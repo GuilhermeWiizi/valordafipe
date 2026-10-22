@@ -1,5 +1,4 @@
 @page "/"
-@using System.Globalization
 @attribute [OutputCache(PolicyName = PaginaCache.Politica)]
 @inject IRankingService Ranking
 @inject ILogger<Home> Logger
@@ -28,7 +27,6 @@
             <AnuncioMock Posicao="home-entre-rankings" />
         }
         <BrandDepreciationRanking Itens="@(ranking?.MarcasComMaiorDesvalorizacao ?? [])" Referencia="ranking?.Referencia" Tipo="tipo" Carregando="false" SemComparacao="@(ranking?.VeiculosComparados == 0)" />
-        <p class="ranking-disclaimer"><Icon Name="info" Size="15" /><span>Ranking da nossa base, que pode ter cobertura parcial. Só entram veículos com preço válido nos dois meses; cada ano e versão é comparado separadamente. @(ranking?.Referencia is { } mes ? $"Referência: {mes.ToString("MMMM/yyyy", Pt)} × {mes.AddMonths(-1).ToString("MMMM/yyyy", Pt)}." : "Aguardando tabelas de referência.")</span></p>
     }
 </section>
 @if (!erro && ranking?.VeiculosComparados > 0)
@@ -37,7 +35,6 @@
 }
 <section class="explore-banner"><span class="banner-icon"><Icon Name="search" Size="25" /></span><div><h3>Tem um veículo em mente?</h3><p>Encontre o preço atual e veja como ele mudou ao longo do tempo.</p></div><a class="btn btn-outline-primary" href="consultar-tabela-fipe">Fazer uma consulta <Icon Name="arrow" Size="17" /></a></section>
 @code {
-    private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-BR");
     // SSR estático: o filtro é um link (?tipo=carros|motos), então cada variação vai pronta para o OutputCache.
     [SupplyParameterFromQuery(Name = "tipo")] public string? TipoQuery { get; set; }
     [CascadingParameter] private HttpContext? HttpContext { get; set; }
