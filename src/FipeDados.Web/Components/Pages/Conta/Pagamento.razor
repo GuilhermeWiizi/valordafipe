@@ -1,0 +1,79 @@
+@page "/conta/pagamentos/{Id:guid}"
+@attribute [Authorize]
+@inject PagamentosService Service
+
+<SeoMetadata Title="Pagamento Pix | VALORDAFIPE" Description="Dados do seu pedido e acompanhamento do Pix." Path="/conta/pagamentos" NoIndex="true" />
+<div class="explore-heading"><h1>Pagamento <span>Pix.</span></h1></div>
+<section class="account-panel payment-panel" data-pix-status="@(pedido?.Provedor == ProvedorPix.MercadoPago ? $"/conta/pagamentos/{Id}/situacao" : null)"
+         data-pix-state="@((int?)pedido?.Status)" data-pix-code="@(!string.IsNullOrEmpty(pedido?.PixCopiaCola) ? "true" : "false")">
+    @if (pedido is null) { <p>Pedido não encontrado.</p> }
+    else
+    {
+        <PedidoPixResumo Pedido="pedido" />
+        @if (!string.IsNullOrEmpty(Erro)) { <p class="payment-error" role="alert">@Erro</p> }
+        @if (pedido.Status == StatusPedidoPix.Processando)
+        {
+            <p role="status">Estamos preparando seu Pix com o Mercado Pago. Esta página será atualizada automaticamente. Não gere outro pedido enquanto a cobrança está sendo processada.</p>
+        }
+        @if (pedido.Status == StatusPedidoPix.AguardandoPagamento && !string.IsNullOrEmpty(pedido.PixCopiaCola))
+        {
+            <h2>Pague pelo aplicativo do seu banco</h2>
+            <p>Confira o valor e o recebedor antes de confirmar. Pagamento por <strong>@pedido.Recebedor</strong>.</p>
+            <img class="pix-qr" src="@qr" width="280" height="280" alt="QR Code Pix para este pedido" />
+            <label for="pix-codigo">Pix Copia e Cola</label>
+            <textarea id="pix-codigo" class="form-control pix-code" readonly rows="5">@pedido.PixCopiaCola</textarea>
+            <button type="button" class="btn btn-outline-primary" data-pix-copy="pix-codigo">Copiar código Pix</button>
+            <p id="pix-copy-status" role="status" aria-live="polite"></p>
+            @if (pedido.Provedor == ProvedorPix.MercadoPago)
+            {
+                <p role="status">Após pagar, aguarde nesta página: a confirmação é automática. Você não precisa enviar comprovante. Um agendamento ainda não é um pagamento recebido.</p>
+            }
+            else
+            {
+            <p>Este é um pedido antigo por Pix direto. O código não tem vencimento bancário. Faça apenas um pagamento para este pedido.</p>
+            <h2>Já realizou o pagamento?</h2>
+            <form method="post" action="@($"/conta/pagamentos/{Id}/informar")" class="account-form" data-enhance="false">
+                <AntiforgeryToken />
+                <label for="nome">Nome do pagador, como aparece no comprovante</label>
+                <input id="nome" name="nome" class="form-control" required minlength="2" maxlength="120" autocomplete="name" />
+                <label for="transacao">ID da transação Pix (EndToEndId)</label>
+                <input id="transacao" name="transacao" class="form-control" required minlength="32" maxlength="32" aria-describedby="transacao-dica" />
+                <small id="transacao-dica">Começa com E e tem 32 caracteres. Copie do comprovante de pagamento efetivado no banco.</small>
+                <button type="submit" class="btn btn-primary">Enviar para conferência</button>
+            </form>
+            }
+        }
+        else if (pedido.Status == StatusPedidoPix.AguardandoConferencia)
+        {
+            <p role="status">Recebemos seus dados. O plano será liberado após a conferência manual do crédito no banco. Não pague novamente este pedido.</p>
+        }
+        else if (pedido.Status == StatusPedidoPix.Aprovado)
+        {
+            <p role="status">Pagamento aprovado! Seu acesso foi atualizado. <a href="/consultar-tabela-fipe" data-enhance-nav="false">Continuar consultando sem anúncios</a>.</p>
+        }
+        else if (pedido.Status is StatusPedidoPix.Expirado or StatusPedidoPix.Cancelado or StatusPedidoPix.Falha)
+        {
+            <p>Este pagamento foi encerrado. Confira a situação antes de <a href="/sem-anuncios">gerar um novo pedido</a>. Se já pagou, entre em contato com o suporte.</p>
+        }
+        else if (pedido.Status == StatusPedidoPix.Recusado)
+        {
+            <p>Se você já pagou, entre em contato pelo canal de suporte informado nos <a href="/termos">Termos de uso</a> com a referência do pedido. Confira a situação antes de fazer outro pagamento.</p>
+        }
+    }
+    <p class="payment-links"><a href="/conta/pagamentos">Meus pagamentos</a> · <a href="/conta">Minha conta</a> · <a href="@($"/conta/pagamentos/{Id}")" data-enhance-nav="false">Atualizar situação</a></p>
+</section>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    [SupplyParameterFromQuery(Name = "erro")] public string? Erro { get; set; }
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    private PedidoPix? pedido;
+    private string? qr;
+    protected override async Task OnParametersSetAsync()
+    {
+        pedido = await Service.ObterAsync(HttpContext.User, Id);
+        if (pedido is null) HttpContext.Response.StatusCode = 404;
+        else if (pedido.Status == StatusPedidoPix.AguardandoPagamento && !string.IsNullOrEmpty(pedido.PixCopiaCola))
+            qr = "data:image/png;base64," + Convert.ToBase64String(PixEstatico.QrCode(pedido.PixCopiaCola));
+    }
+}

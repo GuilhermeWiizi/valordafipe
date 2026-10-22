@@ -1,0 +1,47 @@
+<dl class="account-data payment-data">
+    <dt>Plano</dt><dd>@Pedido.PlanoNome · @(Pedido.Meses == 1 ? "1 mês" : $"{Pedido.Meses} meses")</dd>
+    <dt>Valor total</dt><dd>@Pedido.Valor.ToString("C", Pt)</dd>
+    <dt>Situação</dt><dd>@PagamentosService.StatusTexto(Pedido.Status)</dd>
+    <dt>Pagamento por</dt><dd>@(Pedido.Provedor == ProvedorPix.MercadoPago ? "Mercado Pago" : "Pix direto (pedido antigo)")</dd>
+    @if (Pedido.Provedor == ProvedorPix.MercadoPago && !Pedido.AmbienteProducao)
+    {
+        <dt>Ambiente</dt><dd>Teste — não realize pagamentos reais</dd>
+    }
+    @if (Pedido.VenceEm is { } vence)
+    {
+        <dt>Vencimento do Pix</dt><dd>@UsuarioAtual.Brasilia(vence).ToString("dd/MM/yyyy HH:mm") (Brasília)</dd>
+    }
+    @if (Pedido.RevisaoNecessaria)
+    {
+        <dt>Revisão necessária</dt><dd>@Pedido.MotivoRevisao</dd>
+    }
+    @if (Pedido.ValorDevolvido > 0)
+    {
+        <dt>Valor devolvido</dt><dd>@Pedido.ValorDevolvido.ToString("C", Pt)</dd>
+    }
+    <dt>Referência do pedido</dt><dd class="payment-reference">@Pedido.Referencia</dd>
+    <dt>Criado em</dt><dd>@UsuarioAtual.Brasilia(Pedido.CriadoEm).ToString("dd/MM/yyyy HH:mm")</dd>
+    @if (Pedido.InformadoEm is { } informado)
+    {
+        <dt>Pagamento informado em</dt><dd>@UsuarioAtual.Brasilia(informado).ToString("dd/MM/yyyy HH:mm")</dd>
+        <dt>Nome do pagador informado</dt><dd>@Pedido.NomePagador</dd>
+        <dt>Transação informada</dt><dd class="payment-reference">@Pedido.TransacaoInformada</dd>
+    }
+    @if (Pedido.ConferidoEm is { } conferido)
+    {
+        <dt>@(Pedido.Provedor == ProvedorPix.MercadoPago ? "Confirmado em" : "Conferido em")</dt><dd>@UsuarioAtual.Brasilia(conferido).ToString("dd/MM/yyyy HH:mm")</dd>
+    }
+    @if (Pedido.AcessoAte is { } acesso)
+    {
+        <dt>Acesso concedido até</dt><dd>@UsuarioAtual.Brasilia(acesso).ToString("dd/MM/yyyy HH:mm")</dd>
+    }
+    @if (Pedido.Status == StatusPedidoPix.Recusado)
+    {
+        <dt>Motivo da recusa</dt><dd>@Pedido.MotivoRecusa</dd>
+    }
+</dl>
+
+@code {
+    [Parameter, EditorRequired] public PedidoPix Pedido { get; set; } = default!;
+    private static readonly System.Globalization.CultureInfo Pt = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+}

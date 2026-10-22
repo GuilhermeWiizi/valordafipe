@@ -1,0 +1,44 @@
+@page "/conta/pagamentos/novo"
+@attribute [Authorize]
+@inject PagamentosService Pagamentos
+@inject CobrancasMercadoPago Cobrancas
+
+<SeoMetadata Title="Contratar plano | VALORDAFIPE" Description="Confira o plano e gere seu pagamento Pix." Path="/conta/pagamentos/novo" NoIndex="true" />
+<div class="explore-heading"><h1>Contratar <span>plano.</span></h1></div>
+<section class="account-panel payment-panel">
+    @if (plano is null)
+    {
+        <p>Escolha um plano válido em <a href="/sem-anuncios">Planos sem anúncios</a>.</p>
+    }
+    else
+    {
+        <h2>@plano.Nome · @(plano.Meses == 1 ? "1 mês" : $"{plano.Meses} meses")</h2>
+        <p class="payment-total">@plano.Valor.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"))</p>
+        <p>Pagamento integral por Pix pelo Mercado Pago, com confirmação automática. O período começa após a confirmação do pagamento. Se você já tem acesso ativo, os meses são acrescentados ao vencimento.</p>
+        <p>Todos os planos removem anúncios e ofertas. Não há renovação automática.</p>
+        @if (!string.IsNullOrEmpty(Erro)) { <p role="alert" class="payment-error">@Erro</p> }
+        @if (disponivel)
+        {
+            <form method="post" action="/conta/pagamentos/criar" data-enhance="false">
+                <AntiforgeryToken />
+                <input type="hidden" name="plano" value="@plano.Codigo" />
+                <p>Ao continuar, você aceita as condições do plano nos <a href="/termos">Termos de uso</a> e na <a href="/privacidade">Política de privacidade</a>.</p>
+                <button class="btn btn-primary" type="submit">Gerar pagamento Pix</button>
+            </form>
+        }
+        else { <p role="status">Contratação temporariamente indisponível. Tente novamente mais tarde.</p> }
+    }
+    <p class="payment-links"><a href="/sem-anuncios">Ver planos</a> · <a href="/conta/pagamentos">Meus pagamentos</a></p>
+</section>
+
+@code {
+    [SupplyParameterFromQuery(Name = "plano")] public string? Codigo { get; set; }
+    [SupplyParameterFromQuery(Name = "erro")] public string? Erro { get; set; }
+    private PlanoPagamento? plano;
+    private bool disponivel;
+    protected override async Task OnParametersSetAsync()
+    {
+        plano = Pagamentos.Planos.SingleOrDefault(p => p.Codigo == Codigo);
+        disponivel = await Cobrancas.DisponivelAsync();
+    }
+}

@@ -1,5 +1,8 @@
 @echo off
 setlocal
+set "DEPLOY_EXIT_CODE=1"
+set "DEPLOY_REVISION="
+set "DEPLOY_UNTRACKED="
 
 rem Pode sobrescrever estas variaveis antes de executar o script.
 if not defined DEPLOY_HOST set "DEPLOY_HOST=root@srv1684584.hstgr.cloud"
@@ -8,15 +11,28 @@ if not defined DEPLOY_BRANCH set "DEPLOY_BRANCH=main"
 
 rem Prenda o deploy ao commit deste projeto, mesmo executando de outra pasta.
 pushd "%~dp0.."
+if errorlevel 1 (
+    echo Nao foi possivel acessar o diretorio do projeto.
+    goto falha
+)
 git diff --quiet HEAD --
 if errorlevel 1 (
     echo Ha alteracoes locais. Faca commit e envie para %DEPLOY_BRANCH% antes do deploy.
     popd
-    exit /b 1
+    goto falha
+)
+for /f "delims=" %%i in ('git ls-files --others --exclude-standard') do set "DEPLOY_UNTRACKED=1"
+if defined DEPLOY_UNTRACKED (
+    echo Ha arquivos novos fora do commit. Inclua-os ou ignore-os antes do deploy.
+    popd
+    goto falha
 )
 for /f %%i in ('git rev-parse HEAD') do set "DEPLOY_REVISION=%%i"
 popd
-if not defined DEPLOY_REVISION exit /b 1
+if not defined DEPLOY_REVISION (
+    echo Nao foi possivel identificar o commit local.
+    goto falha
+)
 
 echo Iniciando deploy do FIPE em %DEPLOY_HOST%...
 echo Diretorio: %DEPLOY_PATH% - branch: %DEPLOY_BRANCH%

@@ -1,4 +1,5 @@
 @page "/comparar"
+@rendermode InteractiveServer
 @using System.Globalization
 @using FipeDados.Core.Fipe
 @inject IPrecoService Preco
@@ -167,7 +168,9 @@ else if (!carregando && erro is null)
                 coletaB = await Preco.CompletarHistoricoAsync(veiculoB, referencias, token);
             }
             var falha = coletaA.Falha ?? coletaB.Falha;
-            if (falha is not null) avisoColeta = falha is FipeLimiteException
+            if (falha is not null) avisoColeta = falha is FipeFilaCheiaException
+                ? "Há muitas consultas à Fipe em andamento agora. Os preços já obtidos foram mantidos; tente novamente em instantes."
+                : falha is FipeLimiteException
                 ? "A Fipe limitou temporariamente as consultas. Os preços já obtidos foram mantidos; tente novamente em instantes."
                 : "A busca na Fipe foi interrompida. Os preços já obtidos foram mantidos; alguns meses podem estar faltando.";
             progresso = "Atualizando a comparação com os preços disponíveis…";

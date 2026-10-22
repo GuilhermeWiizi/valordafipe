@@ -1,6 +1,7 @@
 using FipeDados.Core.Entities;
 using FipeDados.Core.Services;
 using FipeDados.Infrastructure.Contas;
+using FipeDados.Infrastructure.Coleta;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -21,10 +22,77 @@ public class FipeDbContext : IdentityDbContext<Usuario>, IDataProtectionKeyConte
     public DbSet<Veiculo> Veiculos => Set<Veiculo>();
     public DbSet<PrecoHistorico> Precos => Set<PrecoHistorico>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
+    public DbSet<PedidoPix> PedidosPix => Set<PedidoPix>();
+    public DbSet<NotificacaoMercadoPago> NotificacoesMercadoPago => Set<NotificacaoMercadoPago>();
+    public DbSet<ColetaMensalConfiguracao> ColetaMensalConfiguracoes => Set<ColetaMensalConfiguracao>();
+    public DbSet<ColetaMensalExecucao> ColetasMensais => Set<ColetaMensalExecucao>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
         base.OnModelCreating(b);
+
+        b.Entity<ColetaMensalConfiguracao>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+        });
+        b.Entity<ColetaMensalExecucao>(e =>
+        {
+            e.HasKey(x => x.Competencia);
+            e.Property(x => x.Estado).HasConversion<string>().HasMaxLength(30);
+            e.Property(x => x.UltimoErro).HasMaxLength(1000);
+            e.Property(x => x.JobId).HasMaxLength(100);
+            e.HasOne<TabelaReferencia>().WithMany().HasForeignKey(x => x.TabelaReferenciaCodigo);
+        });
+
+        b.Entity<PedidoPix>(e =>
+        {
+            e.ToTable("PedidosPix", t =>
+            {
+                t.HasCheckConstraint("CK_PedidosPix_Valor", "\"Valor\" > 0");
+                t.HasCheckConstraint("CK_PedidosPix_Meses", "\"Meses\" IN (1, 3, 6, 12)");
+            });
+            e.HasOne(x => x.Usuario).WithMany().HasForeignKey(x => x.UsuarioId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(x => x.PlanoCodigo).HasMaxLength(20);
+            e.Property(x => x.PlanoNome).HasMaxLength(30);
+            e.Property(x => x.Referencia).HasMaxLength(25);
+            e.Property(x => x.PixCopiaCola).HasMaxLength(2048);
+            e.Property(x => x.Recebedor).HasMaxLength(100);
+            e.Property(x => x.Valor).HasPrecision(14, 2);
+            e.Property(x => x.ValorRecebido).HasPrecision(14, 2);
+            e.Property(x => x.NomePagador).HasMaxLength(120);
+            e.Property(x => x.TransacaoInformada).HasMaxLength(32);
+            e.Property(x => x.TransacaoConfirmada).HasMaxLength(32);
+            e.Property(x => x.AdministradorId).HasMaxLength(450);
+            e.Property(x => x.MotivoRecusa).HasMaxLength(500);
+            e.HasIndex(x => x.Referencia).IsUnique();
+            e.HasIndex(x => x.TransacaoConfirmada).IsUnique();
+            e.Property(x => x.VendedorId).HasMaxLength(30);
+            e.Property(x => x.EmailPagador).HasMaxLength(256);
+            e.Property(x => x.ChaveIdempotencia).HasMaxLength(36);
+            e.Property(x => x.OrdemExternaId).HasMaxLength(100);
+            e.Property(x => x.PagamentoExternoId).HasMaxLength(100);
+            e.Property(x => x.EstadoExterno).HasMaxLength(120);
+            e.Property(x => x.ErroSincronizacao).HasMaxLength(120);
+            e.Property(x => x.MotivoRevisao).HasMaxLength(250);
+            e.Property(x => x.ValorDevolvido).HasPrecision(14, 2);
+            e.HasIndex(x => x.OrdemExternaId).IsUnique();
+            e.HasIndex(x => x.PagamentoExternoId).IsUnique();
+            e.HasIndex(x => new { x.UsuarioId, x.PlanoCodigo, x.Provedor, x.AmbienteProducao, x.VendedorId }).IsUnique()
+                .HasFilter("\"Status\" IN (0, 1, 4)");
+            e.HasIndex(x => x.ProximaSincronizacaoEm);
+            e.HasIndex(x => new { x.Status, x.CriadoEm });
+        });
+
+        b.Entity<NotificacaoMercadoPago>(e =>
+        {
+            e.Property(x => x.Chave).HasMaxLength(64);
+            e.Property(x => x.OrdemId).HasMaxLength(100);
+            e.Property(x => x.VendedorId).HasMaxLength(30);
+            e.Property(x => x.UltimoErro).HasMaxLength(120);
+            e.HasIndex(x => x.Chave).IsUnique();
+            e.HasIndex(x => new { x.ProcessadoEm, x.ProximaTentativaEm });
+        });
 
         b.Entity<TabelaReferencia>(e =>
         {
@@ -65,6 +133,8 @@ public class FipeDbContext : IdentityDbContext<Usuario>, IDataProtectionKeyConte
         {
             e.Property(x => x.Valor).HasPrecision(14, 2);
             e.HasIndex(x => new { x.VeiculoId, x.TabelaReferenciaCodigo }).IsUnique();
+            // Ranking e coleta mensal filtram por referência: o INCLUDE permite index-only scan.
+            e.HasIndex(x => x.TabelaReferenciaCodigo).IncludeProperties(x => new { x.VeiculoId, x.Valor });
             e.HasOne(x => x.Veiculo).WithMany(x => x.Precos).HasForeignKey(x => x.VeiculoId);
             e.HasOne(x => x.TabelaReferencia).WithMany(x => x.Precos)
                 .HasForeignKey(x => x.TabelaReferenciaCodigo);

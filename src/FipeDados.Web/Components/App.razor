@@ -28,13 +28,15 @@
     {
         <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=@Anuncios.Value.AdSenseClientId" crossorigin="anonymous"></script>
     }
-    <HeadOutlet @rendermode="PageRenderMode" />
+    <HeadOutlet />
 </head>
 
 <body>
-    <Routes @rendermode="PageRenderMode" />
+    <Routes />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="@Assets["js/pix.js"]"></script>
+    <script type="module" src="@Assets["js/historico.js"]"></script>
 </body>
 
 </html>
@@ -43,8 +45,8 @@
     [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
     [Inject] private IOptions<AnunciosOptions> Anuncios { get; set; } = default!;
 
-    // Páginas de conta ([ExcludeFromInteractiveRouting]) rodam em SSR estático para gravar o cookie de login.
-    private IComponentRenderMode? PageRenderMode => HttpContext.AcceptsInteractiveRouting() ? InteractiveServer : null;
+    // Roteamento em SSR estático com navegação aprimorada: só Explorar, Comparar e as ilhas
+    // marcadas com @rendermode abrem circuito. O resto vem pronto do servidor (e do OutputCache).
 
     // AdSense só com o Publisher ID configurado e nunca para contas no plano sem anúncios.
     private bool ExibirAnuncios => !Anuncios.Value.ExibirMock

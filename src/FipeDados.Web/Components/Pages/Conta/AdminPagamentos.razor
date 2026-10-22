@@ -1,0 +1,100 @@
+@page "/conta/admin/pagamentos"
+@page "/conta/admin/pagamentos/{Id:guid}"
+@attribute [Authorize(Policy = PagamentosOptions.PoliticaAdmin)]
+@inject PagamentosService Service
+@inject MercadoPagoFila Fila
+
+<SeoMetadata Title="Acompanhar pagamentos | VALORDAFIPE" Description="Acompanhamento dos pagamentos Pix e das devoluções." Path="/conta/admin/pagamentos" NoIndex="true" />
+<div class="explore-heading"><h1>Acompanhar <span>pagamentos.</span></h1><p>Novos pagamentos são confirmados automaticamente pelo Mercado Pago. A conferência manual vale apenas para pedidos antigos por Pix direto.</p></div>
+<section class="account-panel payment-panel">
+    @if (falhasNotificacoes > 0)
+    {
+        <p class="payment-error" role="alert">@falhasNotificacoes notificação(ões) com sincronização pendente. O sistema tentará novamente; confira os registros da aplicação se a situação persistir.</p>
+    }
+    @if (Id.HasValue)
+    {
+        @if (pedido is null) { <p>Pedido não encontrado.</p> }
+        else
+        {
+            <PedidoPixResumo Pedido="pedido" />
+            @if (!string.IsNullOrEmpty(Erro)) { <p class="payment-error" role="alert">@Erro</p> }
+            @if (pedido.Status == StatusPedidoPix.AguardandoConferencia && pedido.Provedor == ProvedorPix.Direto)
+            {
+                <h2>Aprovar recebimento</h2>
+                <p>Os dados do cliente são uma declaração. Consulte o crédito efetivado e a referência no extrato do banco.</p>
+                <form method="post" action="@($"/conta/admin/pagamentos/{Id}/aprovar")" class="account-form" data-enhance="false">
+                    <AntiforgeryToken />
+                    <label for="confirmada">ID da transação conferido no banco</label>
+                    <input id="confirmada" name="transacao" class="form-control" required minlength="32" maxlength="32" />
+                    <label for="valor">Valor recebido (R$)</label>
+                    <input id="valor" name="valor" type="number" step="0.01" min="0.01" class="form-control" required />
+                    <label class="account-check"><input name="conferido" value="sim" type="checkbox" required /> Conferi o crédito efetivado, o recebedor e a referência deste pedido no banco.</label>
+                    <button class="btn btn-primary" type="submit">Aprovar e liberar acesso</button>
+                </form>
+                <h2>Recusar pedido</h2>
+                <form method="post" action="@($"/conta/admin/pagamentos/{Id}/recusar")" class="account-form" data-enhance="false">
+                    <AntiforgeryToken />
+                    <label for="motivo">Motivo visível ao cliente</label>
+                    <textarea id="motivo" name="motivo" class="form-control" required minlength="3" maxlength="500" rows="3"></textarea>
+                    <button class="btn btn-outline-primary" type="submit">Recusar pedido</button>
+                </form>
+            }
+            @if (pedido.Status == StatusPedidoPix.Aprovado)
+            {
+                <p class="payment-reference">Transação confirmada: @(pedido.Provedor == ProvedorPix.MercadoPago ? pedido.PagamentoExternoId : pedido.TransacaoConfirmada)</p>
+                <p>Valor recebido: @pedido.ValorRecebido?.ToString("C", Pt)</p>
+            }
+            @if (pedido.AdministradorId is not null) { <p class="payment-reference">Conferido por: @pedido.AdministradorId</p> }
+            @if (pedido.Provedor == ProvedorPix.MercadoPago)
+            {
+                <p class="payment-reference">Order Mercado Pago: @pedido.OrdemExternaId</p>
+                <p>Estado no provedor: @pedido.EstadoExterno</p>
+                @if (pedido.ErroSincronizacao is not null)
+                {
+                    <p class="payment-error" role="alert">Sincronização pendente: @pedido.ErroSincronizacao. O sistema tentará novamente automaticamente.</p>
+                }
+            }
+        }
+    }
+    else
+    {
+        @if (pedidos.Count == 0) { <p>Nenhum pedido nesta página.</p> }
+        @foreach (var item in pedidos)
+        {
+            <article class="payment-list-item">
+                <h2><a href="@($"/conta/admin/pagamentos/{item.Id}")">@item.PlanoNome · @item.Valor.ToString("C", Pt)</a></h2>
+                <p>@PagamentosService.StatusTexto(item.Status) · @UsuarioAtual.Brasilia(item.CriadoEm).ToString("dd/MM/yyyy HH:mm")</p>
+                <p class="payment-reference">@item.Referencia</p>
+                @if (item.RevisaoNecessaria) { <p class="payment-error">Revisão necessária — @item.MotivoRevisao</p> }
+                @if (item.ErroSincronizacao is not null) { <p class="payment-error">Sincronização pendente</p> }
+            </article>
+        }
+        <nav aria-label="Páginas da conferência" class="payment-links">
+            @if (PaginaAtual > 1) { <a href="@($"?pagina={PaginaAtual - 1}")">Anterior</a> }
+            @if (pedidos.Count == PagamentosService.PorPagina) { <a href="@($"?pagina={PaginaAtual + 1}")">Próxima</a> }
+        </nav>
+    }
+    <p class="payment-links"><a href="/conta/admin/pagamentos">Lista de pagamentos</a> · <a href="/conta">Minha conta</a></p>
+</section>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+    [SupplyParameterFromQuery(Name = "erro")] public string? Erro { get; set; }
+    [SupplyParameterFromQuery(Name = "pagina")] public int? Pagina { get; set; }
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    private int PaginaAtual => Math.Clamp(Pagina ?? 1, 1, 100000);
+    private PedidoPix? pedido;
+    private int falhasNotificacoes;
+    private IReadOnlyList<PedidoPix> pedidos = [];
+    private static readonly System.Globalization.CultureInfo Pt = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+    protected override async Task OnParametersSetAsync()
+    {
+        falhasNotificacoes = await Fila.ContarFalhasAsync();
+        if (Id is { } id)
+        {
+            pedido = await Service.ObterAsync(HttpContext.User, id, administrar: true);
+            if (pedido is null) HttpContext.Response.StatusCode = 404;
+        }
+        else pedidos = await Service.ListarAsync(HttpContext.User, PaginaAtual, administrar: true);
+    }
+}

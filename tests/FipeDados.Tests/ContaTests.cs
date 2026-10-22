@@ -41,6 +41,7 @@ public class ContaTests
     [InlineData("/conta", "/conta/entrar")]
     [InlineData("/conta/senha", "/conta/entrar")]
     [InlineData("/contato", "/conta/entrar?ReturnUrl=%2Fcontato")]
+    [InlineData("/conta/pagamentos/novo?plano=anual", "/conta/entrar?ReturnUrl=%2Fconta%2Fpagamentos%2Fnovo%3Fplano%3Danual")]
     public void ComRetorno_VoltaParaPaginaAtualForaDaConta(string atual, string esperado)
         => Assert.Equal(esperado, ContaUrls.ComRetorno(ContaUrls.Entrar, atual));
 
@@ -196,6 +197,7 @@ public class ContaTests
     private static WebApplicationFactory<Program> CriarApp(DbContextOptions<FipeDbContext> options, SeoTests.NoNetworkFipe api, EmailCapturado emails)
         => new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
+            builder.UseSetting("ColetaMensal:Habilitada", "false");
             builder.UseEnvironment("Production");
             builder.UseSetting("Anuncios:AdSenseClientId", AdSense);
             builder.ConfigureServices(services =>

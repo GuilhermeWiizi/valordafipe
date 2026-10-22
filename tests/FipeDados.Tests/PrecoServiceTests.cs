@@ -132,6 +132,32 @@ public class PrecoServiceTests
         Assert.Equal(2, (await f.Service.ObterDetalheEmCacheAsync(f.Vehicle.Id))!.Serie.Count);
     }
 
+    [PostgresFact]
+    public async Task Completar_ConcorrenteNoMesmoVeiculo_ConsultaCadaMesUmaVez()
+    {
+        await using var f = await Fixture.Create();
+        using var liberar = new ManualResetEventSlim();
+        f.Api.Price = q =>
+        {
+            if (q.CodigoTabela == 3) liberar.Wait(TimeSpan.FromSeconds(10));
+            return new() { Valor = "R$ 100,00", CodigoFipe = "000001-1" };
+        };
+        var primeira = Task.Run(() => f.Service.CompletarHistoricoAsync(f.Vehicle.Id, 3, reconsultarLacunas: false));
+        var limite = DateTime.UtcNow.AddSeconds(10);
+        while (f.Api.Queries.Count == 0 && DateTime.UtcNow < limite) await Task.Delay(10);
+        var segunda = Task.Run(() => f.Service.CompletarHistoricoAsync(f.Vehicle.Id, 3, reconsultarLacunas: false));
+        await Task.Delay(200);
+        Assert.False(segunda.IsCompleted); // Espera a vez em vez de repetir as consultas.
+        Assert.Single(f.Api.Queries);
+
+        liberar.Set();
+        Assert.Equal(3, (await primeira).Consultados);
+        var resultado = await segunda;
+        Assert.Equal(0, resultado.Consultados);
+        Assert.False(resultado.Interrompida);
+        Assert.Equal(new[] { 3, 2, 1 }, f.Api.Queries.Select(q => q.CodigoTabela));
+    }
+
     private sealed class Fixture : IAsyncDisposable, IDbContextFactory<FipeDbContext>
     {
         private readonly string schema = "price_test_" + Guid.NewGuid().ToString("N");

@@ -21,7 +21,9 @@ public static class ContaUrls
     public static string ComRetorno(string pagina, string caminhoAtual)
     {
         var caminho = caminhoAtual.Split('#')[0];
-        return caminho is "" or "/" || EhPaginaDeConta(caminho)
+        var pagamento = caminho == "/conta/pagamentos" || caminho.StartsWith("/conta/pagamentos/", StringComparison.OrdinalIgnoreCase)
+            || caminho.StartsWith("/conta/pagamentos?", StringComparison.OrdinalIgnoreCase);
+        return caminho is "" or "/" || (EhPaginaDeConta(caminho) && !pagamento)
             ? pagina
             : $"{pagina}?ReturnUrl={Uri.EscapeDataString(caminho)}";
     }

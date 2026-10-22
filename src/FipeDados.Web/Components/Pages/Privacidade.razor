@@ -1,4 +1,5 @@
 @page "/privacidade"
+@attribute [OutputCache(PolicyName = PaginaCache.Politica)]
 @inject IOptions<AnunciosOptions> Anuncios
 
 <SeoMetadata Title="Política de privacidade da VALORDAFIPE"
@@ -22,6 +23,9 @@
         <li><strong>Fim do período sem anúncios</strong>, vazio no plano gratuito.</li>
         <li><strong>Dados de segurança da conta</strong>: carimbo de segurança, contagem de tentativas de login malsucedidas e bloqueio temporário após tentativas seguidas.</li>
     </ul>
+    <h3>Pedidos e pagamentos Pix</h3>
+    <p>Ao contratar um plano, guardamos o pedido associado à conta, período e preço contratado, referência e código Pix, provedor, identificadores da cobrança e do pagamento, e-mail usado na cobrança, situação, vencimento, datas de sincronização, valores recebidos ou devolvidos e período concedido. Nos pedidos antigos por Pix direto, também guardamos nome do pagador e identificador da transação informados, conta administradora e motivo de eventual recusa. Não recebemos anexos de comprovantes nem solicitamos senha ou acesso à sua conta bancária.</p>
+    <p>Para criar e confirmar as novas cobranças, enviamos ao Mercado Pago o e-mail da conta, referência do pedido e valor contratado. O Mercado Pago processa o pagamento segundo sua <a href="https://www.mercadopago.com.br/privacidade" target="_blank" rel="noopener noreferrer">Declaração de privacidade</a>. Não usamos os dados de pagamento para publicidade.</p>
     <h3>Cookies</h3>
     <ul>
         <li><strong>.AspNetCore.Identity.Application</strong> (login): mantém você conectado, com conteúdo criptografado. Com &quot;Manter conectado neste aparelho&quot; marcado, e logo após o cadastro, dura até 14 dias e é renovado enquanto você usa o site; sem essa opção, é apagado quando o navegador é fechado. Só existe para quem entra em uma conta.</li>
@@ -37,6 +41,7 @@
     <h2>Para que usamos os dados e com qual base legal?</h2>
     <ul>
         <li><strong>Criar e manter a conta, autenticar o acesso, recuperar a senha e aplicar o plano sem anúncios</strong>: execução de contrato (LGPD, art. 7º, V).</li>
+        <li><strong>Associar pedidos à conta, conferir os pagamentos Pix e liberar ou renovar o plano</strong>: execução de contrato (LGPD, art. 7º, V). Os dados do pagamento ficam acessíveis ao titular da conta e à administração autorizada do site.</li>
         <li><strong>Proteger contas e o site contra acessos indevidos, abuso e fraude, e diagnosticar erros</strong>: legítimo interesse (art. 7º, IX).</li>
         <li><strong>Guardar registros de acesso quando a lei exigir</strong>, como no Marco Civil da Internet (Lei nº 12.965/2014, art. 15): cumprimento de obrigação legal (art. 7º, II).</li>
         @* Revisar com advogado: o Guia de Cookies da ANPD (2022) recomenda consentimento para cookies de publicidade. *@
@@ -67,6 +72,8 @@
     <h2>Por quanto tempo guardamos os dados?</h2>
     <ul>
         <li><strong>Dados da conta</strong>: enquanto a conta existir. A exclusão apaga a conta do banco de dados na hora. Contas inativas não são excluídas automaticamente.</li>
+        <li><strong>Pedidos e dados de pagamento no site</strong>: enquanto a conta existir; são apagados junto com ela. A exclusão no site não apaga registros mantidos pelas instituições financeiras, sujeitos às políticas e obrigações dessas instituições.</li>
+        <li><strong>Notificações de pagamento</strong>: guardamos apenas os identificadores necessários para sincronização, sem comprovantes ou corpo completo da notificação. Os registros já processados são apagados após sete dias; os que precisam de nova tentativa permanecem até a sincronização.</li>
         <li><strong>Cookie de login</strong>: até sair da conta, fechar o navegador ou expirar, conforme descrito acima.</li>
         <li><strong>Registros técnicos (logs)</strong>: @Responsavel.PrazoLogs, ou por mais tempo quando a lei ou uma ordem judicial exigir.</li>
     </ul>
@@ -85,7 +92,7 @@
     <p>Se considerar que seu pedido não foi atendido, você pode apresentar reclamação à <a href="https://www.gov.br/anpd/pt-br" target="_blank" rel="noopener noreferrer">ANPD</a>.</p>
 
     <h2>Mudanças nesta política</h2>
-    <p>Esta política pode mudar, por exemplo quando o plano sem anúncios for lançado e passar a envolver dados de pagamento. A versão em vigor fica sempre nesta página, com a data da última atualização no topo.</p>
+    <p>Esta política pode mudar para acompanhar alterações no serviço e no tratamento de dados. A versão em vigor fica sempre nesta página, com a data da última atualização no topo.</p>
     <p><a href="/termos">Termos de uso</a> · <a href="/sobre">Fontes e metodologia</a></p>
 </article>
 

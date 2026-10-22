@@ -1,145 +1,116 @@
-using FipeDados.Core.Enums;
+using FipeDados.Core.Fipe;
 using FipeDados.Core.Models;
 using FipeDados.Core.Services;
-using FipeDados.Infrastructure.Data;
-using FipeDados.Infrastructure.Fipe;
-using FipeDados.Web.Components.Pages;
-using FipeDados.Web.Seo;
+using FipeDados.Web.Components;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.RenderTree;
 using Microsoft.AspNetCore.Components.Rendering;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace FipeDados.Tests;
 
+/// <summary>
+/// Ilha <see cref="ColetaHistorico"/> da página (SSR) do veículo: só consulta a Fipe depois de
+/// conectar, uma vez, e pede a página atualizada quando trouxe meses novos.
+/// </summary>
 public class VeiculoAutoHistoryTests
 {
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    public async Task SemHistoricoOuComApenasPrecoAtual_CompletaAoFicarInterativo(int precos)
+    [Fact]
+    public async Task ConectarCompletaHistorico_UmaVez_EAtualizaAPagina()
     {
         using var services = Services();
-        await using var renderer = new PageRenderer(services);
-        var page = renderer.Create();
+        await using var renderer = new IslandRenderer(services);
+        var ilha = await renderer.Show(veiculoId: 1);
         var preco = services.GetRequiredService<FakePreco>();
-        preco.Detail = Detail(1, 24);
-        await renderer.Show(page, Detail(1, precos));
-        Assert.Empty(preco.Calls); // HTML inicial usa somente o cache.
+        Assert.Empty(preco.Calls); // O prerender não consulta.
 
-        await renderer.Dispatcher.InvokeAsync(page.Interactive);
+        await renderer.Dispatcher.InvokeAsync(ilha.Interactive);
         Assert.Equal([(1, 24)], preco.Calls);
-        Assert.Equal(24, page.CachedDetail!.Serie.Count);
-        await renderer.Dispatcher.InvokeAsync(page.Interactive);
+        Assert.Equal(1, services.GetRequiredService<TestNavigation>().Refreshes);
+
+        await renderer.Dispatcher.InvokeAsync(ilha.Interactive);
         Assert.Single(preco.Calls); // Novos renders não repetem a consulta.
     }
 
     [Fact]
-    public async Task HistoricoCompleto_ReutilizaCacheSemConsultarFipe()
+    public async Task SemMesesNovos_NaoRecarregaAPagina()
     {
         using var services = Services();
-        await using var renderer = new PageRenderer(services);
-        var page = renderer.Create();
-        await renderer.Show(page, Detail(1, 24));
-        await renderer.Dispatcher.InvokeAsync(page.Interactive);
-        Assert.Empty(services.GetRequiredService<FakePreco>().Calls);
+        await using var renderer = new IslandRenderer(services);
+        services.GetRequiredService<FakePreco>().Complete = _ => Task.FromResult(new ResultadoColeta(0, null));
+        var ilha = await renderer.Show(veiculoId: 1);
+        await renderer.Dispatcher.InvokeAsync(ilha.Interactive);
+        Assert.Equal(0, services.GetRequiredService<TestNavigation>().Refreshes);
     }
 
-    [Fact]
-    public async Task HistoricoComMesesSemCotacao_NaoRepeteChamadasAoAbrirNovamente()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FalhaNaFonte_NaoRecarregaNemEntraEmLoop_RepeteSoAoPedir(bool filaCheia)
     {
         using var services = Services();
-        await using var renderer = new PageRenderer(services);
-        var page = renderer.Create();
-        var detail = Detail(1, 24);
-        detail = detail with { Serie = detail.Serie.Select((p, i) => i == 0 ? p : p with { Valor = null }).ToArray() };
-        await renderer.Show(page, detail);
-        await renderer.Dispatcher.InvokeAsync(page.Interactive);
-        Assert.Empty(services.GetRequiredService<FakePreco>().Calls);
-    }
-
-    [Fact]
-    public async Task TrocaDeVeiculo_CancelaConsultaENaoSobrescreveNovoDetalhe()
-    {
-        using var services = Services();
-        await using var renderer = new PageRenderer(services);
-        var page = renderer.Create();
+        await using var renderer = new IslandRenderer(services);
         var preco = services.GetRequiredService<FakePreco>();
-        var pending = new TaskCompletionSource<ResultadoColeta>(TaskCreationOptions.RunContinuationsAsynchronously);
-        preco.Complete = _ => pending.Task; // Simula resposta tardia, mesmo após cancelar.
-        preco.Detail = Detail(1, 24);
-        await renderer.Show(page, Detail(1, 1));
-        var loading = renderer.Dispatcher.InvokeAsync(page.Interactive);
-        var oldToken = preco.Token;
-        await renderer.Show(page, Detail(2, 24));
-        Assert.True(oldToken.IsCancellationRequested);
-        pending.SetResult(new(23, null));
-        await loading;
-        Assert.Equal(2, page.CachedDetail!.VeiculoId);
-    }
-
-    [Fact]
-    public async Task FalhaNaFonte_PreservaDadosENaoEntraEmLoopDeConsultas()
-    {
-        using var services = Services();
-        await using var renderer = new PageRenderer(services);
-        var page = renderer.Create();
-        var preco = services.GetRequiredService<FakePreco>();
-        preco.Detail = Detail(1, 1);
-        preco.Complete = _ => Task.FromResult(new ResultadoColeta(0, new HttpRequestException("Fonte indisponível")));
-        await renderer.Show(page, preco.Detail);
-        await renderer.Dispatcher.InvokeAsync(page.Interactive);
-        await renderer.Dispatcher.InvokeAsync(page.Interactive);
+        Exception falha = filaCheia ? new FipeFilaCheiaException(TimeSpan.FromSeconds(30)) : new HttpRequestException("Fonte indisponível");
+        preco.Complete = _ => Task.FromResult(new ResultadoColeta(3, falha));
+        var ilha = await renderer.Show(veiculoId: 1);
+        await renderer.Dispatcher.InvokeAsync(ilha.Interactive);
+        await renderer.Dispatcher.InvokeAsync(ilha.Interactive);
         Assert.Single(preco.Calls);
-        Assert.Single(page.CachedDetail!.Serie);
+        Assert.Equal(0, services.GetRequiredService<TestNavigation>().Refreshes); // Página parcial não vira laço de recargas.
+
+        await renderer.Dispatcher.InvokeAsync(ilha.Repetir);
+        await renderer.Dispatcher.InvokeAsync(ilha.Interactive);
+        Assert.Equal(2, preco.Calls.Count);
     }
 
-    private static DetalheVeiculo Detail(int id, int months)
+    [Fact]
+    public async Task SairDaPagina_CancelaConsulta()
     {
-        var series = Enumerable.Range(0, months)
-            .Select(i => new PontoPreco(i + 1, new DateOnly(2026, 10, 1).AddMonths(-i), $"Mês {i}", 50000))
-            .ToArray();
-        return new(id, TipoVeiculo.Carro, "Marca", $"Modelo {id}", "2025 Gasolina", "Gasolina", null,
-            series, null, 1, id, "marca", $"modelo-{id}", "2025-1");
+        using var services = Services();
+        var renderer = new IslandRenderer(services);
+        var preco = services.GetRequiredService<FakePreco>();
+        var pendente = new TaskCompletionSource<ResultadoColeta>(TaskCreationOptions.RunContinuationsAsynchronously);
+        preco.Complete = _ => pendente.Task;
+        var ilha = await renderer.Show(veiculoId: 1);
+        var consulta = renderer.Dispatcher.InvokeAsync(ilha.Interactive);
+        await renderer.DisposeAsync();
+        Assert.True(preco.Token.IsCancellationRequested);
+        pendente.SetResult(new(1, null));
+        await consulta;
+        Assert.Equal(0, services.GetRequiredService<TestNavigation>().Refreshes);
     }
 
     private static ServiceProvider Services() => new ServiceCollection().AddLogging()
         .AddSingleton<FakePreco>().AddSingleton<IPrecoService>(s => s.GetRequiredService<FakePreco>())
-        .AddSingleton(new PublicCatalog(new UnusedDatabase(), Options.Create(new FipeApiOptions())))
-        .AddSingleton<NavigationManager, TestNavigation>().BuildServiceProvider();
+        .AddSingleton<TestNavigation>().AddSingleton<NavigationManager>(s => s.GetRequiredService<TestNavigation>())
+        .BuildServiceProvider();
 
-    // Executa o ciclo real da página, isolando os componentes visuais e controlando a
-    // transição do HTML inicial para o render interativo sem acessar a API externa.
-    public sealed class TestPage : Veiculo
+    // Executa o ciclo real da ilha, sem markup, controlando quando ela "conecta".
+    public sealed class TestIsland : ColetaHistorico
     {
         protected override void BuildRenderTree(RenderTreeBuilder builder) { }
         protected override Task OnAfterRenderAsync(bool firstRender) => Task.CompletedTask;
         public Task Interactive() => base.OnAfterRenderAsync(false);
+        public new void Repetir() => base.Repetir();
     }
 
 #pragma warning disable BL0006
-    private sealed class PageRenderer(IServiceProvider services) : Renderer(services, services.GetRequiredService<ILoggerFactory>())
+    private sealed class IslandRenderer(IServiceProvider services) : Renderer(services, services.GetRequiredService<ILoggerFactory>())
     {
         public override Dispatcher Dispatcher { get; } = Dispatcher.CreateDefault();
-        private int root;
-        public TestPage Create()
+        public async Task<TestIsland> Show(int veiculoId)
         {
-            var page = (TestPage)InstantiateComponent(typeof(TestPage));
-            root = AssignRootComponentId(page);
-            return page;
-        }
-        public Task Show(TestPage page, DetalheVeiculo detail) => Dispatcher.InvokeAsync(() =>
-        {
-            page.CachedDetail = detail;
-            return RenderRootComponentAsync(root, ParameterView.FromDictionary(new Dictionary<string, object?>
+            TestIsland ilha = null!;
+            await Dispatcher.InvokeAsync(() =>
             {
-                [nameof(page.Tipo)] = "carros", [nameof(page.MarcaSlug)] = detail.MarcaSlug,
-                [nameof(page.ModeloSlug)] = detail.ModeloSlug, [nameof(page.AnoSlug)] = "2025-gasolina"
-            }));
-        });
+                ilha = (TestIsland)InstantiateComponent(typeof(TestIsland));
+                var root = AssignRootComponentId(ilha);
+                return RenderRootComponentAsync(root, ParameterView.FromDictionary(new Dictionary<string, object?> { [nameof(ilha.VeiculoId)] = veiculoId }));
+            });
+            return ilha;
+        }
         protected override Task UpdateDisplayAsync(in RenderBatch renderBatch) => Task.CompletedTask;
         protected override void HandleException(Exception exception) => throw exception;
     }
@@ -147,19 +118,15 @@ public class VeiculoAutoHistoryTests
 
     private sealed class TestNavigation : NavigationManager
     {
-        public TestNavigation() => Initialize("https://localhost/", "https://localhost/");
+        public int Refreshes { get; private set; }
+        public TestNavigation() => Initialize("https://localhost/", "https://localhost/tabela-fipe/carros/marca/modelo/2025-gasolina");
+        public override void Refresh(bool forceReload = false) => Refreshes++;
         protected override void NavigateToCore(string uri, bool forceLoad) { }
-    }
-
-    private sealed class UnusedDatabase : IDbContextFactory<FipeDbContext>
-    {
-        public FipeDbContext CreateDbContext() => throw new InvalidOperationException("O detalhe persistido dispensa banco neste teste.");
     }
 
     private sealed class FakePreco : IPrecoService
     {
         public List<(int Id, int Months)> Calls { get; } = [];
-        public DetalheVeiculo? Detail { get; set; }
         public CancellationToken Token { get; private set; }
         public Func<CancellationToken, Task<ResultadoColeta>> Complete { get; set; } = _ => Task.FromResult(new ResultadoColeta(24, null));
         public Task<ResultadoColeta> CompletarHistoricoAsync(int id, int meses, CancellationToken ct = default, bool reconsultarLacunas = true)
@@ -169,8 +136,9 @@ public class VeiculoAutoHistoryTests
             Token = ct;
             return Complete(ct);
         }
-        public Task<DetalheVeiculo?> ObterDetalheEmCacheAsync(int id, CancellationToken ct = default) => Task.FromResult(Detail);
+        public Task<DetalheVeiculo?> ObterDetalheEmCacheAsync(int id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<DetalheVeiculo?> ObterDetalheAsync(int id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<ResultadoColeta> ColetarPrecosAsync(int id, int meses, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<ResultadoColeta> ColetarPrecoReferenciaAsync(int id, int tabela, CancellationToken ct = default) => throw new NotSupportedException();
     }
 }

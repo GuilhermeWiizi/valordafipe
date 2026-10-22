@@ -16,6 +16,12 @@ public class FipeApiOptions
     /// <summary>Limite de requisições por segundo para coleta educada.</summary>
     public double RequestsPerSecond { get; set; } = 0.6;
 
+    /// <summary>
+    /// Máximo de consultas esperando a vez na fila da Fipe; acima disso o pedido do site é
+    /// recusado na hora (a coleta de fundo não entra no teto). 0 desliga o teto.
+    /// </summary>
+    public int MaxFilaEspera { get; set; } = 20;
+
     /// <summary>Quantidade de meses de histórico mantida/consultada.</summary>
     public int HistoryMonths { get; set; } = 24;
 

@@ -1,20 +1,39 @@
+using FipeDados.Core.Entities;
 using FipeDados.Core.Enums;
 using FipeDados.Core.Models;
 using FipeDados.Core.Services;
 using FipeDados.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace FipeDados.Infrastructure.Services;
 
-/// <summary>Consulta apenas preços persistidos; abrir o ranking não dispara coleta.</summary>
-public class RankingService(IDbContextFactory<FipeDbContext> dbFactory) : IRankingService
+/// <summary>
+/// Consulta apenas preços persistidos; abrir o ranking não dispara coleta. Com cache, as
+/// agregações sobre Precos rodam no máximo uma vez por <see cref="Validade"/> e referência.
+/// </summary>
+public class RankingService(IDbContextFactory<FipeDbContext> dbFactory, IMemoryCache? cache = null) : IRankingService
 {
+    // Cobre a coleta do mês em andamento, que acrescenta preços aos poucos.
+    public static readonly TimeSpan Validade = TimeSpan.FromMinutes(10);
+
     public async Task<RankingMensal> ObterMensalAsync(TipoVeiculo? tipo = null, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var atual = await db.TabelasReferencia.AsNoTracking().OrderByDescending(t => t.Data).FirstOrDefaultAsync(ct);
         if (atual is null) return new(null, 0, 0, [], []);
+        if (cache is null) return await CalcularAsync(db, atual, tipo, ct);
 
+        // A referência faz parte da chave: tabela nova publicada invalida o ranking na hora.
+        return (await cache.GetOrCreateAsync(("ranking-mensal", atual.Codigo, tipo), entrada =>
+        {
+            entrada.AbsoluteExpirationRelativeToNow = Validade;
+            return CalcularAsync(db, atual, tipo, ct);
+        }))!;
+    }
+
+    private static async Task<RankingMensal> CalcularAsync(FipeDbContext db, TabelaReferencia atual, TipoVeiculo? tipo, CancellationToken ct)
+    {
         var dataAnterior = atual.Data.AddMonths(-1);
         var anteriores = db.Precos.AsNoTracking().Where(p => p.TabelaReferencia.Data == dataAnterior && p.Valor > 0);
         var atuais = db.Precos.AsNoTracking().Where(p => p.TabelaReferenciaCodigo == atual.Codigo && p.Valor > 0);

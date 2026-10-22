@@ -4,7 +4,7 @@
 @inject NavigationManager Nav
 
 <SeoMetadata Title="Criar conta | VALORDAFIPE" Description="Crie sua conta gratuita na VALORDAFIPE." Path="@ContaUrls.Cadastrar" NoIndex="true" />
-<ContaCartao Titulo="Criar sua conta" Texto="Gratuita e opcional. Com ela você poderá assinar o plano sem anúncios quando ele estiver disponível." Erros="erros">
+<ContaCartao Titulo="Criar sua conta" Texto="Gratuita e opcional. Com ela você pode contratar e acompanhar seu plano sem anúncios." Erros="erros">
     <EditForm Model="Input" method="post" OnValidSubmit="CadastrarAsync" OnInvalidSubmit="Input.LimparSenhas" FormName="cadastrar" class="account-form">
         <DataAnnotationsValidator />
         <label for="email">E-mail</label>
@@ -19,7 +19,7 @@
         <ValidationMessage For="() => Input.Confirmacao" />
         <button type="submit" class="btn btn-primary">Criar conta</button>
     </EditForm>
-    <p class="account-note">Ao criar a conta, você aceita os <a href="/termos">Termos de uso</a>. Usamos seu e-mail apenas para o acesso à conta e para recuperar a senha, como explica a <a href="/privacidade">Política de privacidade</a>. Você pode excluir a conta quando quiser.</p>
+    <p class="account-note">Ao criar a conta, você aceita os <a href="/termos">Termos de uso</a>. Usamos seu e-mail para o acesso, a recuperação de senha e a associação dos pedidos à sua conta, como explica a <a href="/privacidade">Política de privacidade</a>. Você pode excluir a conta quando quiser.</p>
     <div class="account-links"><span>Já tem conta?</span><a href="@ContaUrls.ComRetorno(ContaUrls.Entrar, ReturnUrl ?? "/")">Entrar</a></div>
 </ContaCartao>
 

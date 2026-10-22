@@ -1,0 +1,31 @@
+@page "/conta/pagamentos"
+@attribute [Authorize]
+@inject PagamentosService Service
+
+<SeoMetadata Title="Meus pagamentos | VALORDAFIPE" Description="Acompanhe seus pedidos e pagamentos por Pix." Path="/conta/pagamentos" NoIndex="true" />
+<div class="explore-heading"><h1>Meus <span>pagamentos.</span></h1><p>Acompanhe a conferência e a liberação do seu plano.</p></div>
+<section class="account-panel payment-panel">
+    @if (pedidos.Count == 0) { <p>Nenhum pedido nesta página.</p> }
+    @foreach (var pedido in pedidos)
+    {
+        <article class="payment-list-item">
+            <h2><a href="@($"/conta/pagamentos/{pedido.Id}")">@pedido.PlanoNome · @pedido.Valor.ToString("C", Pt)</a></h2>
+            <p>@PagamentosService.StatusTexto(pedido.Status) · @UsuarioAtual.Brasilia(pedido.CriadoEm).ToString("dd/MM/yyyy")</p>
+            <p class="payment-reference">@pedido.Referencia</p>
+        </article>
+    }
+    <nav aria-label="Páginas de pagamentos" class="payment-links">
+        @if (PaginaAtual > 1) { <a href="@($"?pagina={PaginaAtual - 1}")">Anterior</a> }
+        @if (pedidos.Count == PagamentosService.PorPagina) { <a href="@($"?pagina={PaginaAtual + 1}")">Próxima</a> }
+    </nav>
+    <p><a href="/sem-anuncios">Contratar ou renovar plano</a> · <a href="/conta">Minha conta</a></p>
+</section>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    [SupplyParameterFromQuery(Name = "pagina")] public int? Pagina { get; set; }
+    private int PaginaAtual => Math.Clamp(Pagina ?? 1, 1, 100000);
+    private IReadOnlyList<PedidoPix> pedidos = [];
+    private static readonly System.Globalization.CultureInfo Pt = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+    protected override async Task OnParametersSetAsync() => pedidos = await Service.ListarAsync(HttpContext.User, PaginaAtual);
+}

@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 using FipeDados.Core.Fipe;
 using FipeDados.Core.Services;
 using FipeDados.Infrastructure.BackgroundJobs;
+using FipeDados.Infrastructure.Coleta;
 using FipeDados.Infrastructure.Data;
 using FipeDados.Infrastructure.Fipe;
 using FipeDados.Infrastructure.Services;
@@ -12,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using Polly;
 using Polly.Timeout;
 
@@ -19,13 +21,28 @@ namespace FipeDados.Infrastructure;
 
 public static class DependencyInjection
 {
+    /// <summary>Teto do pool quando a connection string não define "Maximum Pool Size".</summary>
+    public const int MaxConexoesPadrao = 40;
+
     public static IServiceCollection AddFipeInfrastructure(this IServiceCollection services, IConfiguration config)
     {
         services.Configure<FipeApiOptions>(config.GetSection(FipeApiOptions.Section));
-        services.AddSingleton<FipeRequestGate>();
+        services.AddSingleton(sp =>
+        {
+            var opt = sp.GetRequiredService<IOptions<FipeApiOptions>>().Value;
+            return new FipeRequestGate(opt.MaxFilaEspera, opt.RequestsPerSecond);
+        });
+        services.AddSingleton<ColetaPorVeiculoLock>();
+        services.AddMemoryCache();
 
         var conn = config.GetConnectionString("FipeDb")
             ?? throw new InvalidOperationException("Connection string 'FipeDb' não configurada (ConnectionStrings:FipeDb).");
+        // O Postgres padrão aceita 100 conexões e o pool do Npgsql também abriria até 100, além
+        // do Hangfire. No pico, o excesso espera a vez no pool em vez de receber "too many clients".
+        var informadas = new System.Data.Common.DbConnectionStringBuilder { ConnectionString = conn }.Keys.Cast<string>()
+            .Select(k => k.Replace(" ", "")).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (!informadas.Overlaps(["MaximumPoolSize", "MaxPoolSize"]))
+            conn = new NpgsqlConnectionStringBuilder(conn) { MaxPoolSize = MaxConexoesPadrao }.ConnectionString;
         services.AddDbContextFactory<FipeDbContext>(o => o.UseNpgsql(conn));
         // Identity e Data Protection pedem o contexto por escopo: ele sai da mesma fábrica,
         // então quem substitui a fábrica (testes) troca também o banco das contas.
@@ -98,6 +115,10 @@ public static class DependencyInjection
         services.AddScoped<IPrecoService, PrecoService>();
         services.AddScoped<IRankingService, RankingService>();
         services.AddScoped<IVeiculosRelacionadosService, VeiculosRelacionadosService>();
+        services.AddOptions<ScraperOptions>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<ColetorFipe>();
+        services.AddScoped<ColetaMensalService>();
         services.AddHostedService<ReferenceTableRefreshService>();
 
         return services;

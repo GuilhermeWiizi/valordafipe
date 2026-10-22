@@ -148,7 +148,8 @@ public class SeoTests
             Assert.Contains($"href=\"{brandPath}\"", detail);
             Assert.DoesNotContain("<dialog open", detail);
             var plano = WebUtility.HtmlDecode(await client.GetStringAsync($"/sem-anuncios?ReturnUrl={Uri.EscapeDataString(vehiclePath)}"));
-            Assert.Contains("Contratação em breve", plano);
+            Assert.Contains("Contratação temporariamente indisponível", plano);
+            foreach (var preco in new[] { "9,90", "27,90", "49,90", "89,90" }) Assert.Contains(preco, plano);
             Assert.Contains($"href=\"{vehiclePath}\"", plano);
             foreach (var externo in new[] { "https://example.com", "//example.com", "/\\example.com", "/\n/example.com" })
             {
@@ -260,10 +261,12 @@ public class SeoTests
 #pragma warning restore EF1002
     }
 
-    private static WebApplicationFactory<Program> CreateFactory(DbContextOptions<FipeDbContext> options, NoNetworkFipe api, string environment)
+    internal static WebApplicationFactory<Program> CreateFactory(DbContextOptions<FipeDbContext> options, NoNetworkFipe api, string environment)
         => new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment(environment);
+            builder.UseSetting("ColetaMensal:Habilitada", "false");
+            builder.UseSetting("Anuncios:AdSenseClientId", "");
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IDbContextFactory<FipeDbContext>>();

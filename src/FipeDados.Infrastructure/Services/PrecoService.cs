@@ -7,6 +7,7 @@ using FipeDados.Infrastructure.Fipe;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace FipeDados.Infrastructure.Services;
 
@@ -22,14 +23,16 @@ public class PrecoService : IPrecoService
     private readonly IFipeApiClient _fipe;
     private readonly FipeApiOptions _options;
     private readonly ILogger<PrecoService> _logger;
+    private readonly ColetaPorVeiculoLock _coletas;
 
     public PrecoService(IDbContextFactory<FipeDbContext> dbFactory, IFipeApiClient fipe,
-        IOptions<FipeApiOptions> options, ILogger<PrecoService> logger)
+        IOptions<FipeApiOptions> options, ILogger<PrecoService> logger, ColetaPorVeiculoLock? coletas = null)
     {
         _dbFactory = dbFactory;
         _fipe = fipe;
         _options = options.Value;
         _logger = logger;
+        _coletas = coletas ?? new ColetaPorVeiculoLock();
     }
 
     public async Task<DetalheVeiculo?> ObterDetalheAsync(int veiculoId, CancellationToken ct = default)
@@ -121,6 +124,15 @@ public class PrecoService : IPrecoService
         return await GarantirPrecosAsync(db, veiculo, tabelas, ct, reconsultarLacunas, salvarCadaMes: true);
     }
 
+    public async Task<ResultadoColeta> ColetarPrecoReferenciaAsync(int veiculoId, int codigoTabela, CancellationToken ct = default)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(ct);
+        var veiculo = await CarregarVeiculoAsync(db, veiculoId, ct);
+        var tabela = await db.TabelasReferencia.FindAsync([codigoTabela], ct);
+        if (veiculo is null || tabela is null) return new(0, new InvalidOperationException("Veículo ou referência não encontrado."));
+        return await GarantirPrecosAsync(db, veiculo, [tabela], ct, salvarCadaMes: true);
+    }
+
     private static Task<Veiculo?> CarregarVeiculoAsync(FipeDbContext db, int veiculoId, CancellationToken ct)
         => db.Veiculos
             .Include(v => v.Modelo).ThenInclude(m => m.Marca)
@@ -135,12 +147,26 @@ public class PrecoService : IPrecoService
     private async Task<ResultadoColeta> GarantirPrecosAsync(FipeDbContext db, Veiculo veiculo, List<TabelaReferencia> tabelas, CancellationToken ct,
         bool reconsultarLacunas = false, bool salvarCadaMes = false)
     {
+        bool Falta(bool existe, decimal? valor) => !existe || (reconsultarLacunas && !(valor > 0));
+
+        // Checagem sem trava: veículo já completo (o caso comum) não espera a vez de ninguém.
+        var conhecidos = await db.Precos.AsNoTracking()
+            .Where(p => p.VeiculoId == veiculo.Id)
+            .Select(p => new { p.TabelaReferenciaCodigo, p.Valor })
+            .ToDictionaryAsync(p => p.TabelaReferenciaCodigo, p => p.Valor, ct);
+        if (!tabelas.Any(t => Falta(conhecidos.TryGetValue(t.Codigo, out var v), v)))
+            return new ResultadoColeta(0, null);
+
+        // Outra coleta deste veículo pode estar em andamento: espera a vez e relê o que ela gravou.
+        using var vez = await _coletas.AcquireAsync(veiculo.Id, ct);
+        await db.Entry(veiculo).ReloadAsync(ct);
+
         var existentes = (await db.Precos
             .Where(p => p.VeiculoId == veiculo.Id)
             .ToListAsync(ct)).ToDictionary(p => p.TabelaReferenciaCodigo);
 
         var faltantes = tabelas
-            .Where(t => !existentes.TryGetValue(t.Codigo, out var p) || (reconsultarLacunas && !(p.Valor > 0)))
+            .Where(t => Falta(existentes.TryGetValue(t.Codigo, out var p), p?.Valor))
             .OrderByDescending(t => t.Data) // mais recente primeiro: descobre o código Fipe cedo
             .ToList();
         if (faltantes.Count == 0) return new ResultadoColeta(0, null);
@@ -175,6 +201,8 @@ public class PrecoService : IPrecoService
                 // Algumas versões não são encontradas pelo código em todos os meses.
                 if (salvarCadaMes && usarCodigo && !(FipeParsing.ParseValor(resp?.Valor) > 0))
                     resp = await _fipe.ConsultarValorAsync(query with { TipoConsulta = "tradicional", ModeloCodigoExterno = null }, ct);
+                if (resp is not null && !(FipeParsing.ParseValor(resp.Valor) > 0))
+                    throw new HttpRequestException("A Fipe retornou uma cotação inválida; o preço permanece pendente.");
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -202,6 +230,12 @@ public class PrecoService : IPrecoService
                 try { await db.SaveChangesAsync(ct); }
                 catch (DbUpdateException ex)
                 {
+                    if (await ConflitoJaGravadoAsync(db, ex, veiculo.Id, [tabela.Codigo], ct))
+                    {
+                        db.Entry(preco).State = EntityState.Detached;
+                        db.Entry(veiculo).State = EntityState.Unchanged;
+                        continue;
+                    }
                     _logger.LogWarning(ex, "Conflito ao completar histórico do veículo {Veiculo}.", veiculo.Id);
                     return new(consultados, ex);
                 }
@@ -215,9 +249,18 @@ public class PrecoService : IPrecoService
         }
         catch (DbUpdateException ex)
         {
+            if (await ConflitoJaGravadoAsync(db, ex, veiculo.Id, faltantes.Select(t => t.Codigo).ToArray(), ct))
+                return new(consultados, falha);
             _logger.LogWarning(ex, "Conflito ao gravar preços do veículo {Veiculo}.", veiculo.Id);
             falha ??= ex;
         }
         return new ResultadoColeta(consultados, falha);
+    }
+
+    private static async Task<bool> ConflitoJaGravadoAsync(FipeDbContext db, DbUpdateException ex, int veiculoId, int[] tabelas, CancellationToken ct)
+    {
+        if (ex.InnerException is not PostgresException { SqlState: PostgresErrorCodes.UniqueViolation }) return false;
+        // Outra consulta (site/coletor) pode ter gravado o mesmo preço durante a chamada HTTP.
+        return await db.Precos.AsNoTracking().CountAsync(p => p.VeiculoId == veiculoId && tabelas.Contains(p.TabelaReferenciaCodigo), ct) == tabelas.Length;
     }
 }

@@ -1,6 +1,6 @@
 using FipeDados.Infrastructure;
 using FipeDados.Infrastructure.Data;
-using FipeDados.Scraper;
+using FipeDados.Infrastructure.Coleta;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

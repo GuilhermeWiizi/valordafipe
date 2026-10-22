@@ -53,4 +53,7 @@ public interface IPrecoService
     /// o detalhe. Usado pelo coletor em lote; meses já consultados não vão de novo à Fipe.
     /// </summary>
     Task<ResultadoColeta> ColetarPrecosAsync(int veiculoId, int meses, CancellationToken ct = default);
+
+    /// <summary>Coleta somente a referência indicada, preservando inclusive ausências já confirmadas.</summary>
+    Task<ResultadoColeta> ColetarPrecoReferenciaAsync(int veiculoId, int codigoTabela, CancellationToken ct = default);
 }

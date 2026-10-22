@@ -14,6 +14,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+    # Teto para não disputar a VPS com o RotinaPsi; ajuste em .env.vps conforme o plano.
+    deploy:
+      resources:
+        limits:
+          cpus: "${DB_CPUS:-1.0}"
+          memory: ${DB_MEMORY:-768m}
     restart: unless-stopped
 
   web:
@@ -24,6 +30,7 @@ services:
         BUILD_REVISION: ${BUILD_REVISION:-unknown}
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+      ColetaMensal__Habilitada: ${COLETA_MENSAL_HABILITADA:-true}
       ASPNETCORE_HTTP_PORTS: "8080"
       ReverseProxy__KnownProxies__0: ${TRUSTED_PROXY_IP:-127.0.0.1}
       TZ: America/Sao_Paulo
@@ -37,11 +44,34 @@ services:
       Email__Remetente: ${EMAIL_REMETENTE:-VALORDAFIPE <nao-responda@valordafipe.com.br>}
       Anuncios__AdSenseClientId: ${ADSENSE_CLIENT_ID:-ca-pub-3765938973361380}
       Anuncios__ExibirMock: ${ADS_EXIBIR_MOCK:-false}
+      Pagamentos__Habilitado: ${PIX_HABILITADO:-false}
+      MercadoPago__Habilitado: ${MP_HABILITADO:-false}
+      MercadoPago__Producao: ${MP_PRODUCAO:-false}
+      MercadoPago__AccessToken: ${MP_ACCESS_TOKEN:-}
+      MercadoPago__WebhookSecret: ${MP_WEBHOOK_SECRET:-}
+      MercadoPago__VendedorId: ${MP_VENDEDOR_ID:-}
+      MercadoPago__UrlPublica: ${MP_URL_PUBLICA:-https://valordafipe.com.br}
+      MercadoPago__ChavePixCadastrada: ${MP_CHAVE_PIX_CADASTRADA:-false}
+      Pagamentos__AdministradorId: ${PIX_ADMINISTRADOR_ID:-}
+      Pagamentos__ChavePix: ${PIX_CHAVE:-}
+      Pagamentos__NomeRecebedor: ${PIX_NOME_RECEBEDOR:-}
+      Pagamentos__CidadeRecebedor: ${PIX_CIDADE_RECEBEDOR:-}
+      Pagamentos__Mensal: ${PLANO_MENSAL:-9.90}
+      Pagamentos__Trimestral: ${PLANO_TRIMESTRAL:-27.90}
+      Pagamentos__Semestral: ${PLANO_SEMESTRAL:-49.90}
+      Pagamentos__Anual: ${PLANO_ANUAL:-89.90}
     ports:
       - "127.0.0.1:${WEB_PORT:-8082}:8080"
     depends_on:
       fipedados-db:
         condition: service_healthy
+    # O .NET respeita o limite do contêiner (heap até 75% da memória). Circuitos Blazor
+    # (Explorar/Comparar) são o que mais consome: acompanhe em curl 127.0.0.1:8082/health/carga.
+    deploy:
+      resources:
+        limits:
+          cpus: "${WEB_CPUS:-1.5}"
+          memory: ${WEB_MEMORY:-1g}
     restart: unless-stopped
 
 volumes:

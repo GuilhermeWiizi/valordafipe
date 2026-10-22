@@ -1,7 +1,9 @@
 @page "/sem-anuncios"
+@inject PagamentosService Pagamentos
+@inject CobrancasMercadoPago Cobrancas
 
 <SeoMetadata Title="Plano sem anúncios | VALORDAFIPE"
-             Description="Conheça o futuro plano da VALORDAFIPE para consultar e comparar veículos sem anúncios. Contratação em breve."
+             Description="Escolha seu plano mensal, trimestral, semestral ou anual para consultar e comparar veículos sem anúncios. Pagamento por Pix."
              Path="/sem-anuncios" />
 
 <section class="ad-free-plan" aria-labelledby="ad-free-title">
@@ -14,7 +16,28 @@
         <article><Icon Name="search" Size="24" /><h2>Sem estas ofertas</h2><p>Continue suas pesquisas e comparações sem convites para conhecer o plano.</p></article>
         <article><Icon Name="chart" Size="24" /><h2>Toda a informação</h2><p>Preços, gráficos, rankings e comparações continuam disponíveis para ajudar você a decidir.</p></article>
     </div>
-    <div class="plan-availability" role="status"><strong>Contratação em breve</strong><p>O plano ainda não está disponível para compra. Preço e condições serão apresentados no lançamento.</p></div>
+    <div class="plan-prices">
+        @foreach (var plano in Pagamentos.Planos)
+        {
+            <article class="plan-price">
+                <h2>@plano.Nome</h2>
+                <p class="plan-total">@plano.Valor.ToString("C", Pt)</p>
+                <p>Pagamento único · @(plano.Meses == 1 ? "1 mês" : $"{plano.Meses} meses")</p>
+                @if (disponivel)
+                {
+                    <a class="btn btn-primary" href="@($"/conta/pagamentos/novo?plano={plano.Codigo}")" data-enhance-nav="false">Escolher @plano.Nome.ToLowerInvariant()</a>
+                }
+                else
+                {
+                    <button class="btn btn-outline-primary" disabled>Contratação indisponível</button>
+                }
+            </article>
+        }
+    </div>
+    <div class="plan-availability" role="status">
+        <strong>@(disponivel ? "Pix pelo Mercado Pago, com liberação automática" : "Contratação temporariamente indisponível")</strong>
+        <p>O acesso começa após a confirmação do pagamento pelo Mercado Pago. Você acompanha o pedido na sua conta. Sem renovação automática.</p>
+    </div>
     <a class="btn btn-primary" href="@Retorno">Voltar à consulta <Icon Name="arrow" Size="17" /></a>
     <p class="plan-free-note">Você pode continuar usando as consultas gratuitas, sem criar uma conta.</p>
 </section>
@@ -22,4 +45,7 @@
 @code {
     [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
     private string Retorno => ContaUrls.Retorno(ReturnUrl, "/consultar-tabela-fipe");
+    private static readonly System.Globalization.CultureInfo Pt = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+    private bool disponivel;
+    protected override async Task OnInitializedAsync() => disponivel = await Cobrancas.DisponivelAsync();
 }

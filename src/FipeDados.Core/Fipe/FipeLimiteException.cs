@@ -5,8 +5,8 @@ namespace FipeDados.Core.Fipe;
 /// Repetir em seguida só prolonga o bloqueio: quem chama deve esperar, de preferência
 /// o <see cref="RetryAfter"/> quando a Fipe o informar.
 /// </summary>
-public class FipeLimiteException(TimeSpan? retryAfter)
-    : Exception("A Fipe limitou as requisições (HTTP 429).")
+public class FipeLimiteException(TimeSpan? retryAfter, string? mensagem = null)
+    : Exception(mensagem ?? "A Fipe limitou as requisições (HTTP 429).")
 {
     public TimeSpan? RetryAfter { get; } = retryAfter;
 }

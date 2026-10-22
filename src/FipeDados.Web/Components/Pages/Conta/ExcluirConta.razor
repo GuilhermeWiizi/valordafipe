@@ -6,7 +6,7 @@
 @inject NavigationManager Nav
 
 <SeoMetadata Title="Excluir conta | VALORDAFIPE" Description="Exclua sua conta na VALORDAFIPE." Path="/conta/excluir" NoIndex="true" />
-<ContaCartao Titulo="Excluir conta" Texto="A exclusão é definitiva: apaga seu e-mail e os dados da conta. As consultas continuam disponíveis sem login." Icone="info" Erros="erros">
+<ContaCartao Titulo="Excluir conta" Texto="A exclusão é definitiva: apaga seu e-mail, os pedidos Pix e os dados da conta, e encerra o acesso sem anúncios. Resolva pagamentos pendentes com o suporte antes de excluir. As consultas continuam disponíveis sem login." Icone="info" Erros="erros">
     <EditForm Model="Input" method="post" OnValidSubmit="ExcluirAsync" OnInvalidSubmit="Input.LimparSenhas" FormName="excluir-conta" class="account-form">
         <DataAnnotationsValidator />
         <label for="senha">Confirme com sua senha</label>

@@ -229,6 +229,9 @@ public class ModelSearchComponentTests
         public Task<ResultadoPesquisaSelecao> Query(TestPage page, string termo) => Dispatcher.InvokeAsync(() => (Task<ResultadoPesquisaSelecao>)Invoke(page, "PesquisarModelos", termo, CancellationToken.None)!);
         protected override Task UpdateDisplayAsync(in RenderBatch batch) => Task.CompletedTask;
         protected override void HandleException(Exception exception) => throw exception;
+        // Explorar declara @rendermode InteractiveServer; aqui o ciclo roda direto, sem circuito.
+        protected override IComponent ResolveComponentForRenderMode(Type componentType, int? parentComponentId,
+            IComponentActivator componentActivator, IComponentRenderMode renderMode) => componentActivator.CreateInstance(componentType);
     }
 #pragma warning restore BL0006
     private sealed class FakeCatalog : ICatalogService

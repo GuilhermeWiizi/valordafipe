@@ -117,6 +117,8 @@ namespace FipeDados.Infrastructure.Data.Migrations
 
                     b.HasIndex("TabelaReferenciaCodigo");
 
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("TabelaReferenciaCodigo"), new[] { "VeiculoId", "Valor" });
+
                     b.HasIndex("VeiculoId", "TabelaReferenciaCodigo")
                         .IsUnique();
 
@@ -185,6 +187,296 @@ namespace FipeDados.Infrastructure.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("Veiculos");
+                });
+
+            modelBuilder.Entity("FipeDados.Infrastructure.Coleta.ColetaMensalConfiguracao", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("PrimeiraCompetencia")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ColetaMensalConfiguracoes");
+                });
+
+            modelBuilder.Entity("FipeDados.Infrastructure.Coleta.ColetaMensalExecucao", b =>
+                {
+                    b.Property<DateOnly>("Competencia")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime?>("ConcluidaEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("ItensComFalha")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("JobId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("PrecosConsultados")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("TabelaReferenciaCodigo")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Tentativas")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UltimaTentativaEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UltimoErro")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("VeiculosPercorridos")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Competencia");
+
+                    b.HasIndex("TabelaReferenciaCodigo");
+
+                    b.ToTable("ColetasMensais");
+                });
+
+            modelBuilder.Entity("FipeDados.Infrastructure.Contas.NotificacaoMercadoPago", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("AmbienteProducao")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Chave")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("OrdemId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("ProcessadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ProximaTentativaEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("RecebidoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("Reserva")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ReservaAte")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Tentativas")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UltimoErro")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("VendedorId")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Chave")
+                        .IsUnique();
+
+                    b.HasIndex("ProcessadoEm", "ProximaTentativaEm");
+
+                    b.ToTable("NotificacoesMercadoPago");
+                });
+
+            modelBuilder.Entity("FipeDados.Infrastructure.Contas.PedidoPix", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("AcessoAte")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("AdministradorId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<bool>("AmbienteProducao")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ChaveIdempotencia")
+                        .HasMaxLength(36)
+                        .HasColumnType("character varying(36)");
+
+                    b.Property<DateTime?>("ConferidoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EmailPagador")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("ErroSincronizacao")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("EstadoExterno")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime?>("InformadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Meses")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MotivoRecusa")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("MotivoRevisao")
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<string>("NomePagador")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("OrdemExternaId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("PagamentoExternoId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("PixCopiaCola")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<string>("PlanoCodigo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("PlanoNome")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("Provedor")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ProximaSincronizacaoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Recebedor")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Referencia")
+                        .IsRequired()
+                        .HasMaxLength(25)
+                        .HasColumnType("character varying(25)");
+
+                    b.Property<DateTime?>("ReservaAte")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReservaSincronizacao")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("RevisaoNecessaria")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("SincronizadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TentativasSincronizacao")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TransacaoConfirmada")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("TransacaoInformada")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("UsuarioId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("Valor")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<decimal>("ValorDevolvido")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<decimal?>("ValorRecebido")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<DateTime?>("VenceEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VendedorId")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrdemExternaId")
+                        .IsUnique();
+
+                    b.HasIndex("PagamentoExternoId")
+                        .IsUnique();
+
+                    b.HasIndex("ProximaSincronizacaoEm");
+
+                    b.HasIndex("Referencia")
+                        .IsUnique();
+
+                    b.HasIndex("TransacaoConfirmada")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "CriadoEm");
+
+                    b.HasIndex("UsuarioId", "PlanoCodigo", "Provedor", "AmbienteProducao", "VendedorId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" IN (0, 1, 4)");
+
+                    b.ToTable("PedidosPix", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PedidosPix_Meses", "\"Meses\" IN (1, 3, 6, 12)");
+
+                            t.HasCheckConstraint("CK_PedidosPix_Valor", "\"Valor\" > 0");
+                        });
                 });
 
             modelBuilder.Entity("FipeDados.Infrastructure.Contas.Usuario", b =>
@@ -447,6 +739,24 @@ namespace FipeDados.Infrastructure.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Modelo");
+                });
+
+            modelBuilder.Entity("FipeDados.Infrastructure.Coleta.ColetaMensalExecucao", b =>
+                {
+                    b.HasOne("FipeDados.Core.Entities.TabelaReferencia", null)
+                        .WithMany()
+                        .HasForeignKey("TabelaReferenciaCodigo");
+                });
+
+            modelBuilder.Entity("FipeDados.Infrastructure.Contas.PedidoPix", b =>
+                {
+                    b.HasOne("FipeDados.Infrastructure.Contas.Usuario", "Usuario")
+                        .WithMany()
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Usuario");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

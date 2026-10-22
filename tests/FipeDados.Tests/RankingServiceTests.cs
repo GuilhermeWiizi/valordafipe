@@ -3,6 +3,7 @@ using FipeDados.Core.Enums;
 using FipeDados.Infrastructure.Data;
 using FipeDados.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Npgsql;
 
 namespace FipeDados.Tests;
@@ -116,6 +117,52 @@ public class RankingServiceTests
         finally
         {
             // Apenas o schema de teste, cujo nome é gerado nesta execução.
+            await db.Database.ExecuteSqlRawAsync($"DROP SCHEMA {schema} CASCADE");
+        }
+    }
+
+    [PostgresFact]
+    public async Task Ranking_ComCache_ReaproveitaAteNovaReferencia()
+    {
+        var schema = "ranking_test_" + Guid.NewGuid().ToString("N");
+        var connection = new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("FIPEDADOS_TEST_CONNECTION")) { SearchPath = schema };
+        var options = new DbContextOptionsBuilder<FipeDbContext>().UseNpgsql(connection.ConnectionString).Options;
+        await using var db = new FipeDbContext(options);
+        await db.Database.ExecuteSqlRawAsync($"CREATE SCHEMA {schema}");
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(db.Database.GenerateCreateScript());
+            using var cache = new MemoryCache(new MemoryCacheOptions());
+            var service = new RankingService(new Factory(options), cache);
+            var atual = new TabelaReferencia { Codigo = 2, Data = new(2026, 10, 1), Mes = "outubro/2026" };
+            var anterior = new TabelaReferencia { Codigo = 1, Data = new(2026, 9, 1), Mes = "setembro/2026" };
+            var modelo = new Modelo { Nome = "Carro", CodigoFipe = 1, Marca = new Marca { Nome = "Marca", CodigoFipe = 1, Tipo = TipoVeiculo.Carro } };
+            var sequencia = 0;
+            void Adicionar(decimal valor)
+            {
+                var veiculo = new Veiculo { Modelo = modelo, AnoModeloCodigo = (++sequencia).ToString(), AnoLabel = "2025 Gasolina" };
+                veiculo.Precos.Add(new PrecoHistorico { TabelaReferencia = atual, Valor = valor });
+                veiculo.Precos.Add(new PrecoHistorico { TabelaReferencia = anterior, Valor = 100 });
+                db.Add(veiculo);
+            }
+            Adicionar(110);
+            await db.SaveChangesAsync();
+            var primeiro = await service.ObterMensalAsync();
+            Assert.Equal(1, primeiro.VeiculosComparados);
+
+            Adicionar(90);
+            await db.SaveChangesAsync();
+            Assert.Same(primeiro, await service.ObterMensalAsync()); // Dentro da validade: sem novas agregações.
+            Assert.Equal(2, (await service.ObterMensalAsync(TipoVeiculo.Carro)).VeiculosComparados); // Filtro tem chave própria.
+            Assert.Equal(2, (await new RankingService(new Factory(options)).ObterMensalAsync()).VeiculosComparados);
+
+            db.Add(new TabelaReferencia { Codigo = 3, Data = new(2026, 11, 1), Mes = "novembro/2026" });
+            await db.SaveChangesAsync();
+            var novo = await service.ObterMensalAsync();
+            Assert.Equal(new DateOnly(2026, 11, 1), novo.Referencia); // Referência nova invalida na hora.
+        }
+        finally
+        {
             await db.Database.ExecuteSqlRawAsync($"DROP SCHEMA {schema} CASCADE");
         }
     }

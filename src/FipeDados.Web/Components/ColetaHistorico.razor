@@ -1,0 +1,64 @@
+@using FipeDados.Core.Fipe
+@inject IPrecoService Preco
+@inject NavigationManager Nav
+@inject ILogger<ColetaHistorico> Logger
+@implements IDisposable
+@* Ilha interativa da página (SSR) do veículo: só existe enquanto faltam meses no histórico.
+   Busca na Fipe depois de conectar e, com meses novos, pede ao servidor a página atualizada. *@
+
+@if (atualizando)
+{
+    <div class="history-update" role="status" aria-live="polite"><span class="small-spinner"></span><p>Consultando na Fipe os meses que faltam no histórico…</p></div>
+}
+@if (erro is not null)
+{
+    <div class="notice" role="alert"><span>@erro</span><button class="text-button" @onclick="Repetir">Tentar novamente</button></div>
+}
+
+@code {
+    [Parameter, EditorRequired] public int VeiculoId { get; set; }
+    [Parameter] public int Meses { get; set; } = 24;
+
+    private readonly CancellationTokenSource lifetime = new();
+    private bool atualizando = true;
+    private bool pendente = true;
+    private string? erro;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // No prerender não há OnAfterRender: a consulta só começa com o circuito conectado.
+        if (!pendente) return;
+        pendente = false;
+        var token = lifetime.Token;
+        try
+        {
+            var coleta = await Preco.CompletarHistoricoAsync(VeiculoId, Meses, token, reconsultarLacunas: false);
+            token.ThrowIfCancellationRequested();
+            if (coleta.Interrompida)
+            {
+                erro = coleta.Falha switch
+                {
+                    FipeFilaCheiaException fila => $"Há muitas consultas à Fipe em andamento agora. Os preços já disponíveis foram mantidos. Tente novamente em {Segundos(fila.RetryAfter)} segundos.",
+                    FipeLimiteException limite => $"A Fipe continua limitando as consultas. Os preços já obtidos foram mantidos. Tente novamente em {Segundos(limite.RetryAfter)} segundos.",
+                    _ => "A fonte de preços está temporariamente indisponível. Os meses já obtidos foram mantidos; tente novamente para completar o histórico."
+                };
+            }
+            // Meses novos sem falha: a navegação aprimorada troca só o que mudou na página.
+            else if (coleta.Consultados > 0) Nav.Refresh();
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Falha ao atualizar histórico do veículo {Id}.", VeiculoId);
+            erro = "Não foi possível consultar o histórico agora. Os dados já disponíveis foram mantidos. Tente novamente em instantes.";
+        }
+        atualizando = false;
+        StateHasChanged();
+    }
+
+    protected void Repetir() { erro = null; atualizando = pendente = true; }
+
+    private static int Segundos(TimeSpan? espera) => Math.Max(1, (int)Math.Ceiling((espera ?? TimeSpan.FromMinutes(1)).TotalSeconds));
+
+    public void Dispose() { lifetime.Cancel(); lifetime.Dispose(); }
+}

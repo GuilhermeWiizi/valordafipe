@@ -1,12 +1,11 @@
 @using System.Globalization
 @inject IVeiculosRelacionadosService Service
 @inject ILogger<RelatedVehicles> Logger
-@implements IDisposable
+@inject NavigationManager Nav
 
 <section class="related-vehicles" aria-labelledby="other-years-heading">
     <header class="related-heading"><div><span class="related-eyebrow">O MESMO MODELO, OUTRAS POSSIBILIDADES</span><h2 id="other-years-heading">Quanto muda de um ano para outro?</h2><p>Outros anos e combustíveis de @Detail.Marca @Detail.Modelo.</p></div><a href="@CatalogPaths.Model(Detail.Tipo, Detail.MarcaSlug, Detail.ModeloSlug)">Ver todos <Icon Name="arrow" Size="15" /></a></header>
-    @if (carregando) { <div class="related-loading skeleton" role="status" aria-label="Carregando outros veículos"></div> }
-    else if (erro) { <div class="notice" role="status">Não foi possível carregar as alternativas. <button class="text-button" @onclick="Carregar">Tentar novamente</button></div> }
+    @if (erro) { <div class="notice" role="status">Não foi possível carregar as alternativas. <a class="text-button" href="@Nav.Uri">Tentar novamente</a></div> }
     else if (dados is { } r)
     {
         <div class="related-year-grid">
@@ -28,25 +27,19 @@
     [Parameter, EditorRequired] public DetalheVeiculo Detail { get; set; } = default!;
     private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-BR");
     private VeiculosRelacionados? dados;
-    private bool carregando = true, erro;
-    private DetalheVeiculo? anterior;
-    private int versao;
-    private readonly CancellationTokenSource lifetime = new();
+    private bool erro;
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+    // SSR estático, renderizado junto com a página do veículo.
     protected override async Task OnParametersSetAsync()
     {
-        if (ReferenceEquals(anterior, Detail)) return;
-        anterior = Detail;
-        await Carregar();
-    }
-    private async Task Carregar()
-    {
-        var requisicao = ++versao;
-        carregando = true; erro = false;
-        try { var resultado = await Service.ObterAsync(Detail.VeiculoId, lifetime.Token); if (requisicao == versao) dados = resultado; }
-        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
-        catch (Exception ex) { Logger.LogWarning(ex, "Falha ao carregar veículos relacionados."); if (requisicao == versao) erro = true; }
-        finally { if (requisicao == versao) carregando = false; }
+        erro = false;
+        try { dados = await Service.ObterAsync(Detail.VeiculoId, HttpContext?.RequestAborted ?? default); }
+        catch (Exception ex) when (HttpContext?.RequestAborted.IsCancellationRequested != true)
+        {
+            Logger.LogWarning(ex, "Falha ao carregar veículos relacionados.");
+            erro = true;
+            PaginaCache.NaoArmazenar(HttpContext); // A falha não fica em cache para os próximos visitantes.
+        }
     }
     private static string Moeda(decimal? valor, bool sinal = false) => valor is { } v ? (sinal && v > 0 ? "+" : "") + v.ToString("C2", Pt) : "—";
-    public void Dispose() { lifetime.Cancel(); lifetime.Dispose(); }
 }

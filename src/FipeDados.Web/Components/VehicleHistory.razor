@@ -1,17 +1,21 @@
 @using System.Globalization
+@using System.Text.Json
+@* SSR estático: a tabela completa vai no HTML (SEO e sem JS). Gráfico, período e medida
+   ficam com o elemento <fipe-historico> (wwwroot/js/historico.js), sem circuito no servidor. *@
 <section class="vehicle-history" aria-labelledby="history-heading">
-    <header class="history-heading"><div><span class="history-eyebrow">COTAÇÃO A COTAÇÃO</span><h2 id="history-heading">A história por trás do preço</h2><p>@(linhas.Count == 0 ? "Aguardando preços disponíveis." : $"{linhas[0].Data:MM/yyyy} a {linhas[^1].Data:MM/yyyy} · {linhas.Count(l => l.Valor is not null)} meses com preço")</p></div><div class="segmented-control" role="group" aria-label="Período do histórico"><button class="@(meses == 6 ? "selected" : "")" aria-pressed="@(meses == 6)" @onclick="() => MudarPeriodo(6)">6 meses</button><button class="@(meses == 12 ? "selected" : "")" aria-pressed="@(meses == 12)" @onclick="() => MudarPeriodo(12)">12 meses</button><button class="@(meses is null ? "selected" : "")" aria-pressed="@(meses is null)" @onclick="() => MudarPeriodo(null)">Todo o histórico</button></div></header>
-    <div class="history-chart-toolbar"><span><Icon Name="chart" Size="16" />@(percentual ? "Variação desde a primeira cotação do período" : "Preço de referência em reais")</span><div class="segmented-control" role="group" aria-label="Medida do histórico"><button class="@(!percentual ? "selected" : "")" aria-pressed="@(!percentual)" @onclick="() => MudarMedida(false)">Preço (R$)</button><button class="@(percentual ? "selected" : "")" aria-pressed="@percentual" @onclick="() => MudarMedida(true)">Variação (%)</button></div></div>
-    <div class="history-chart"><ApexChart @key="chave" TItem="LinhaHistorico" Options="opcoes" Height="320"><ApexPointSeries TItem="LinhaHistorico" Items="linhas" Name="@(percentual ? "Variação acumulada" : "Preço Fipe")" XValue="@(p => p.Data.ToString("MMM/yy", Pt))" YValue="@(p => percentual ? p.VariacaoAcumuladaPct : p.Valor)" SeriesType="SeriesType.Line" /></ApexChart></div>
+    <header class="history-heading"><div><span class="history-eyebrow">COTAÇÃO A COTAÇÃO</span><h2 id="history-heading">A história por trás do preço</h2><p data-historico-resumo>@Resumo(linhas)</p></div><div class="segmented-control" role="group" aria-label="Período do histórico"><button type="button" data-periodo="6" aria-pressed="false">6 meses</button><button type="button" data-periodo="12" aria-pressed="false">12 meses</button><button type="button" class="selected" data-periodo="" aria-pressed="true">Todo o histórico</button></div></header>
+    <div class="history-chart-toolbar"><span><Icon Name="chart" Size="16" /><span data-historico-medida>Preço de referência em reais</span></span><div class="segmented-control" role="group" aria-label="Medida do histórico"><button type="button" class="selected" data-medida="preco" aria-pressed="true">Preço (R$)</button><button type="button" data-medida="variacao" aria-pressed="false">Variação (%)</button></div></div>
+    <fipe-historico class="history-chart" data-serie="@serieJson" role="img" aria-label="@($"Gráfico do preço Fipe de {Detail.Marca} {Detail.Modelo} {Detail.AnoLabel}")"><div class="history-chart-placeholder"></div></fipe-historico>
     @if (Detail.Resumo is { ValorAtual: > 0 })
     {
         <AnuncioMock Posicao="veiculo-apos-grafico" />
     }
-    <div class="history-table-heading"><div><h3>Variação mês a mês</h3><p>Acompanhe cada movimento e a mudança acumulada no período.</p></div><a class="btn btn-outline-primary" href="@CsvUrl" download="@($"historico-fipe-{Detail.VeiculoId}.csv")"><Icon Name="external" Size="14" /> Baixar CSV</a></div>
-    <div class="history-table-scroll"><table class="table history-table"><caption>Histórico da Tabela Fipe de @Detail.Marca @Detail.Modelo @Detail.AnoLabel. Acumulado desde @(linhas.FirstOrDefault(l => l.Valor > 0)?.Data.ToString("MM/yyyy") ?? "—").</caption><thead><tr><th scope="col">REFERÊNCIA</th><th scope="col">PREÇO FIPE</th><th scope="col">NO MÊS (%)</th><th scope="col">NO MÊS (R$)</th><th scope="col">ACUMULADA (%)</th></tr></thead><tbody>
-        @foreach (var linha in linhas.Reverse())
+    <div class="history-table-heading"><div><h3>Variação mês a mês</h3><p>Acompanhe cada movimento e a mudança acumulada no período.</p></div><a class="btn btn-outline-primary" href="@CsvUrl" download="@($"historico-fipe-{Detail.VeiculoId}.csv")" data-historico-csv><Icon Name="external" Size="14" /> Baixar CSV</a></div>
+    <div class="history-table-scroll"><table class="table history-table"><caption>Histórico da Tabela Fipe de @Detail.Marca @Detail.Modelo @Detail.AnoLabel. Acumulado desde <span data-historico-desde>@(linhas.FirstOrDefault(l => l.Valor > 0)?.Data.ToString("MM/yyyy") ?? "—")</span>.</caption><thead><tr><th scope="col">REFERÊNCIA</th><th scope="col">PREÇO FIPE</th><th scope="col">NO MÊS (%)</th><th scope="col">NO MÊS (R$)</th><th scope="col">ACUMULADA (%)</th></tr></thead><tbody>
+        @for (var i = linhas.Count - 1; i >= 0; i--)
         {
-            <tr><th scope="row">@linha.Mes</th><td>@Moeda(linha.Valor)</td><td class="@Cor(linha.VariacaoMesPct)">@Pct(linha.VariacaoMesPct)</td><td class="@Cor(linha.VariacaoMesValor)">@Moeda(linha.VariacaoMesValor, true)</td><td class="@Cor(linha.VariacaoAcumuladaPct)">@Pct(linha.VariacaoAcumuladaPct)</td></tr>
+            var linha = linhas[i];
+            <tr data-indice="@i"><th scope="row">@linha.Mes</th><td>@Moeda(linha.Valor)</td><td class="@Cor(linha.VariacaoMesPct)">@Pct(linha.VariacaoMesPct)</td><td class="@Cor(linha.VariacaoMesValor)">@Moeda(linha.VariacaoMesValor, true)</td><td class="@Cor(linha.VariacaoAcumuladaPct)" data-acumulada>@Pct(linha.VariacaoAcumuladaPct)</td></tr>
         }
     </tbody></table></div><p class="history-note"><Icon Name="info" Size="15" /> A variação mensal usa o mês imediatamente anterior, inclusive quando ele está fora do filtro. Acumulada: primeira cotação válida do período. — indica dado ausente; preços não são estimados.</p>
 </section>
@@ -19,41 +23,28 @@
 @code {
     [Parameter, EditorRequired] public DetalheVeiculo Detail { get; set; } = default!;
     private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-BR");
-    private DetalheVeiculo? anterior;
-    private int? meses;
-    private bool percentual;
-    private int chave;
     private IReadOnlyList<LinhaHistorico> linhas = [];
-    private ApexChartOptions<LinhaHistorico> opcoes = new();
+    private string serieJson = "[]";
+
     protected override void OnParametersSet()
     {
-        if (ReferenceEquals(anterior, Detail)) return;
-        anterior = Detail;
-        Atualizar();
-    }
-    private void MudarPeriodo(int? valor) { meses = valor; Atualizar(); }
-    private void MudarMedida(bool valor) { percentual = valor; Atualizar(); }
-    private void Atualizar()
-    {
-        var todas = HistoricoMensalCalculator.Calcular(Detail.Serie);
-        var selecionadas = meses is { } quantidade ? todas.TakeLast(quantidade).ToArray() : todas.ToArray();
-        var basePreco = selecionadas.FirstOrDefault(l => l.Valor > 0)?.Valor;
-        linhas = selecionadas.Select(l => l with { VariacaoAcumuladaPct = basePreco is > 0 && l.Valor is { } valor ? (valor / basePreco - 1) * 100m : null }).ToArray();
-        chave++;
-        opcoes = new()
+        linhas = HistoricoMensalCalculator.Calcular(Detail.Serie);
+        // Rótulos já formatados em pt-BR: o navegador só recalcula o acumulado do período.
+        serieJson = JsonSerializer.Serialize(linhas.Select(l => new
         {
-            Chart = new Chart { Toolbar = new Toolbar { Show = false } }, Colors = ["#197653"],
-            Stroke = new Stroke { Curve = Curve.Straight, Width = 3 }, Markers = new Markers { Size = 3 },
-            DataLabels = new DataLabels { Enabled = false },
-            Yaxis = [new YAxis { Labels = new YAxisLabels { Formatter = percentual
-                ? "function(v) { return v == null ? '—' : v.toLocaleString('pt-BR', {maximumFractionDigits: 1}) + '%'; }"
-                : "function(v) { return v == null ? '—' : 'R$ ' + (v/1000).toLocaleString('pt-BR', {maximumFractionDigits: 1}) + ' mil'; }" } }],
-            Tooltip = new Tooltip { Y = new TooltipY { Formatter = percentual
-                ? "function(v) { return v == null ? 'Sem preço' : v.toLocaleString('pt-BR', {maximumFractionDigits: 2}) + '%'; }"
-                : "function(v) { return v == null ? 'Sem preço' : v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'}); }" } }
-        };
+            d = l.Data.ToString("yyyy-MM"),
+            r = l.Data.ToString("MMM/yy", Pt),
+            m = l.Data.ToString("MM/yyyy"),
+            v = l.Valor,
+            pm = l.VariacaoMesPct,
+            vm = l.VariacaoMesValor
+        }));
     }
-    private string CsvUrl => "data:text/csv;charset=utf-8," + Uri.EscapeDataString("\uFEFFReferência;Preço FIPE;Variação mensal (%);Variação mensal (R$);Variação acumulada (%)\r\n" + string.Join("\r\n", linhas.Reverse().Select(l => string.Join(";", l.Data.ToString("yyyy-MM"), Numero(l.Valor), Numero(l.VariacaoMesPct), Numero(l.VariacaoMesValor), Numero(l.VariacaoAcumuladaPct)))));
+
+    private static string Resumo(IReadOnlyList<LinhaHistorico> linhas) => linhas.Count == 0
+        ? "Aguardando preços disponíveis."
+        : $"{linhas[0].Data:MM/yyyy} a {linhas[^1].Data:MM/yyyy} · {linhas.Count(l => l.Valor is not null)} meses com preço";
+    private string CsvUrl => "data:text/csv;charset=utf-8," + Uri.EscapeDataString("﻿Referência;Preço FIPE;Variação mensal (%);Variação mensal (R$);Variação acumulada (%)\r\n" + string.Join("\r\n", linhas.Reverse().Select(l => string.Join(";", l.Data.ToString("yyyy-MM"), Numero(l.Valor), Numero(l.VariacaoMesPct), Numero(l.VariacaoMesValor), Numero(l.VariacaoAcumuladaPct)))));
     private static string Numero(decimal? valor) => valor?.ToString("0.00", Pt) ?? "";
     private static string Moeda(decimal? valor, bool sinal = false) => valor is { } v ? (sinal && v > 0 ? "+" : "") + v.ToString("C2", Pt) : "—";
     private static string Pct(decimal? valor) => valor is { } v ? v.ToString("+0.00;-0.00;0.00", Pt) + "%" : "—";

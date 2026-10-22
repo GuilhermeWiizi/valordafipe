@@ -28,10 +28,12 @@ public static class TabelaReferenciaSync
         {
             if (existentes.Contains(m.Codigo)) continue;
             var data = FipeParsing.ParseMesReferencia(m.Mes) ?? DateOnly.FromDateTime(DateTime.UtcNow);
-            db.TabelasReferencia.Add(new TabelaReferencia { Codigo = m.Codigo, Mes = m.Mes.Trim(), Data = data });
-            novas++;
+            // O refresh diário e a coleta mensal podem descobrir a mesma referência juntos.
+            novas += await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO "TabelasReferencia" ("Codigo", "Mes", "Data")
+                VALUES ({m.Codigo}, {m.Mes.Trim()}, {data}) ON CONFLICT ("Codigo") DO NOTHING
+                """, ct);
         }
-        if (novas > 0) await db.SaveChangesAsync(ct);
-        return (novas, existentes.Count + novas);
+        return (novas, await db.TabelasReferencia.CountAsync(ct));
     }
 }

@@ -262,8 +262,10 @@ reutilizados. A busca pode levar alguns segundos e mostra um indicador de andame
   A variação mensal exige o mês imediatamente anterior; lacunas não são interpoladas.
   Mostra outros anos do modelo e até seis veículos do mesmo tipo com preço na faixa de
   ±10%, sempre na mesma referência da cotação exibida. Atalhos abrem `/comparar?a=ID&b=ID`
-  com a seleção preenchida. As sugestões usam apenas a base; a consulta automática do
-  histórico busca na Fipe os preços ausentes após a página ficar interativa.
+  com a seleção preenchida. As sugestões usam apenas a base. A página é SSR estático:
+  gráfico, filtros e CSV rodam no navegador (`wwwroot/js/historico.js`), sem circuito no
+  servidor. Só quando faltam meses entra a ilha interativa `ColetaHistorico`, que busca os
+  preços ausentes na Fipe e atualiza a página ao terminar.
 
 - **Busca em tempo de execução na comparação:** ao comparar ou trocar de período, os meses
   ausentes ou sem preço positivo são consultados na Fipe e salvos no banco. Preços válidos
@@ -414,7 +416,7 @@ e [URLs canônicas](https://developers.google.com/search/docs/crawling-indexing/
 
 ## Contas de usuário (opcional)
 
-Login e cadastro existem para o futuro **plano sem anúncios**. Nenhuma página pública exige
+Login e cadastro existem para contratar e acompanhar o **plano sem anúncios**. Nenhuma página pública exige
 conta; o topo mostra **Entrar / Criar conta** ou **Minha conta**. Usa ASP.NET Core Identity no
 mesmo PostgreSQL (tabelas `AspNet*`, criadas pela migration `AddContas` no startup).
 
@@ -437,8 +439,8 @@ mesmo PostgreSQL (tabelas `AspNet*`, criadas pela migration `AddContas` no start
   derrubam logins nem invalidam links de senha. Elas são gravadas sem criptografia; quem lê o
   banco consegue forjar cookies, então proteja o acesso ao PostgreSQL de produção.
 - **Plano sem anúncios:** `AspNetUsers.SemAnunciosAte` (UTC). Enquanto for futuro, a conta não vê
-  anúncios. O valor vai no cookie e é renovado a cada 30 minutos; ao estender o plano após um
-  pagamento, chame `SignInManager.RefreshSignInAsync` para valer na hora.
+  anúncios. O valor vai no cookie e é renovado a cada 30 minutos. Ao abrir `/conta` ou acompanhar
+  pagamentos, a sessão do próprio comprador é atualizada antes da renderização, incluindo o AdSense.
 - **AdSense:** o Publisher ID `ca-pub-3765938973361380` já está configurado para carregar o
   script de verificação (Auto ads) no `<head>`. Os arquivos Compose usam esse mesmo ID quando
   `ADSENSE_CLIENT_ID` está vazio ou ausente; defina essa variável para usar outra conta.
@@ -455,10 +457,124 @@ mesmo PostgreSQL (tabelas `AspNet*`, criadas pela migration `AddContas` no start
   a consulta segue sem oferta. Erros, tentativas repetidas da mesma comparação, mudanças de
   período/medida, links diretos, catálogo e veículos relacionados não contam. Assinantes ativos
   não recebem a oferta. A origem da pesquisa usa estado interno de navegação, sem mudar a URL.
-  `/sem-anuncios` apresenta os benefícios previstos, informa “Contratação em breve” e permite
+  `/sem-anuncios` apresenta os benefícios e os quatro planos e permite
   voltar ao resultado por `ReturnUrl` local; a última comparação fica em memória no circuito
-  para esse retorno, preservando período e medida. Não há preço, checkout ou cobrança nesta etapa.
+  para esse retorno, preservando período e medida. A contratação por Pix está descrita abaixo.
   Testes da frequência no navegador: `node --test tests/browser/plan-offer.test.mjs`.
+
+### Planos com Pix pelo Mercado Pago
+
+Os quatro períodos removem anúncios e ofertas: mensal (1 mês, R$ 9,90), trimestral
+(3 meses, R$ 27,90), semestral (6 meses, R$ 49,90) e anual (12 meses, R$ 89,90).
+O pagamento é integral e antecipado, com confirmação automática e renovação por novo pagamento.
+As consultas continuam gratuitas. Não há assinatura recorrente nem cobrança de cartão nesta versão.
+
+- `/sem-anuncios`: catálogo público; a escolha é preservada no login/cadastro.
+- `/conta/pagamentos`: histórico privado e acompanhamento, com QR Code e Copia e Cola.
+- `/conta/admin/pagamentos`: acompanhamento, devoluções para revisão e conferência dos pedidos antigos.
+- `POST /pagamentos/mercado-pago/webhook`: notificações assinadas do provedor.
+
+#### Dados necessários da conta Mercado Pago
+
+Em [Suas integrações](https://www.mercadopago.com.br/developers/panel/app), crie ou selecione
+uma aplicação de Checkout Transparente (API Orders). Configure no servidor:
+
+| Variável Docker | Configuração .NET | Onde obter / finalidade |
+|---|---|---|
+| `MP_ACCESS_TOKEN` | `MercadoPago__AccessToken` | Credenciais da aplicação, ambiente correspondente |
+| `MP_WEBHOOK_SECRET` | `MercadoPago__WebhookSecret` | Webhooks → Configurar notificação → chave secreta |
+| `MP_VENDEDOR_ID` | `MercadoPago__VendedorId` | User ID da conta vendedora; confira em Dados da integração/conta de teste ou `/users/me` |
+| `MP_URL_PUBLICA` | `MercadoPago__UrlPublica` | Origem HTTPS do site ou do túnel de testes, sem caminho |
+| `MP_CHAVE_PIX_CADASTRADA` | `MercadoPago__ChavePixCadastrada` | `true` após cadastrar uma chave Pix na conta Mercado Pago e habilitar recebimentos |
+| `MP_PRODUCAO` | `MercadoPago__Producao` | `false` para vendedor de teste; `true` para vendedor real |
+| `MP_HABILITADO` | `MercadoPago__Habilitado` | Libera novas compras somente após validar a configuração |
+
+Não envie senha, tokens ou chave secreta no chat. Grave os segredos no `.env`/`.env.vps`
+ignorado pelo Git, ou em variáveis do servidor/user-secrets. O SDK local não carrega `.env`
+automaticamente: use as variáveis .NET. Esta integração de servidor não usa Public Key,
+Client Secret ou acesso à sua conta bancária. A chave Pix fica cadastrada no Mercado Pago;
+o site não precisa receber seu valor, apenas a confirmação `MP_CHAVE_PIX_CADASTRADA=true`.
+
+Exemplo sem segredos, mantendo novas compras desativadas:
+
+```dotenv
+MP_HABILITADO=false
+MP_PRODUCAO=false
+MP_ACCESS_TOKEN=
+MP_WEBHOOK_SECRET=
+MP_VENDEDOR_ID=
+MP_URL_PUBLICA=https://valordafipe.com.br
+MP_CHAVE_PIX_CADASTRADA=false
+PIX_ADMINISTRADOR_ID=
+PLANO_MENSAL=9.90
+PLANO_TRIMESTRAL=27.90
+PLANO_SEMESTRAL=49.90
+PLANO_ANUAL=89.90
+```
+
+`PIX_ADMINISTRADOR_ID` é o identificador de uma conta deste site, diferente do vendedor
+Mercado Pago. Cadastre-a pelo site e obtenha o ID com:
+
+```sql
+SELECT "Id" FROM "AspNetUsers" WHERE "NormalizedEmail" = UPPER('seu-email@example.com');
+```
+
+Essa configuração permite acompanhar devoluções e exceções no painel. Não concede permissão
+por e-mail nem cria administradores automaticamente. Os preços usam ponto decimal, devem ser
+positivos e ter no máximo duas casas. Pedidos preservam o valor e o período contratados.
+
+#### Configurar notificações e validar
+
+1. Cadastre no painel de Webhooks o endereço `{MP_URL_PUBLICA}/pagamentos/mercado-pago/webhook`
+   e habilite os eventos de **Orders** (criação e atualizações, incluindo devoluções).
+   Para localhost, use um túnel HTTPS ou um ambiente de homologação acessível ao provedor.
+2. Use credenciais e vendedor próprios do ambiente de teste, com `MP_PRODUCAO=false`.
+   A API Orders distingue usuários de teste dos reais; não deduza o ambiente pelo prefixo
+   do token. A verificação `/users/me` compara o ID e a marca `test_user` da conta.
+   Confira as [instruções oficiais de teste Pix](https://www.mercadopago.com.br/developers/pt/docs/checkout-api-orders/integration-test/pix):
+   o provedor usa cenários e valores predefinidos para simulação, não um Pix real de teste.
+3. Teste as notificações assinadas e acompanhe a fila. A simulação de webhook sozinha não
+   comprova um pagamento: o servidor consulta a order pelo token antes de liberar acesso.
+4. Antes de publicar, configure os contatos reais em `Components/Pages/Responsavel.cs`,
+   confira as taxas aplicáveis à conta e faça backup do PostgreSQL. As migrations incluem
+   `AddMercadoPago`; as colunas e os estados dos pedidos antigos são preservados.
+5. Em ambiente restrito, use a conta real e suas credenciais, `MP_PRODUCAO=true`, e valide
+   um recebimento real com aprovação automática e atualização do acesso sem novo login.
+   Só então libere novas compras ao público. Nunca pague um QR Code do ambiente de teste.
+
+Sem credenciais, os testes automatizados usam um provedor fictício e não comprovam a
+homologação da conta Mercado Pago. Para pausar novas compras, altere `MP_HABILITADO=false`
+e reinicie o serviço. Mantenha as credenciais para confirmar pagamentos já emitidos;
+webhooks e reconciliação continuam funcionando com novas compras pausadas.
+
+#### Operação e compatibilidade
+
+A criação persiste a referência e a chave de idempotência antes de chamar a API. Cliques
+repetidos e respostas perdidas recuperam a mesma cobrança. O Pix vence em 24 horas;
+pedidos pendentes do mesmo cliente/período, vendedor e ambiente são reaproveitados.
+O site aguarda o estado confirmado pelo provedor antes de permitir substituir o pedido.
+
+Notificações autenticadas são persistidas antes do HTTP 200. Um `BackgroundService`
+independente da coleta Fipe processa a fila a cada cinco segundos; cobranças pendentes
+são reconciliadas a cada cinco minutos. Reservas temporárias permitem retomada após
+reinícios e evitam processamento simultâneo. Retentativas usam backoff e `Retry-After`.
+Assinaturas seguem o manifesto HMAC oficial; replays não concedem meses novamente.
+
+A confirmação confere referência, conta, ambiente, moeda BRL, meio Pix e valor integral,
+e grava aprovação e extensão do acesso na mesma transação. A página consulta apenas o
+estado local a cada cinco segundos enquanto visível. Ao aprovar, recarrega e atualiza a sessão.
+Os meses partem da confirmação ou do vencimento futuro e usam o calendário.
+
+Devoluções totais/parciais ficam registradas com **Revisão necessária** no painel; preservam
+o acesso até revisão administrativa. Não é possível emitir devoluções pelo site nesta versão.
+Monitore os alertas de sincronização do painel, os códigos de erro dos logs e as notificações
+no painel Mercado Pago. Nunca registre corpos externos, tokens ou dados do pagador em logs.
+
+Pedidos anteriores à migration são identificados como **Pix direto (pedido antigo)**,
+mantêm código e histórico e podem ser informados/conferidos manualmente. A configuração
+`PIX_HABILITADO` não reativa novas vendas diretas. Novos pedidos usam exclusivamente Mercado Pago.
+A exclusão da conta apaga seus pedidos; notificações tardias não recriam a conta ou seu acesso.
+As notificações guardam somente identificadores e são apagadas sete dias após processamento.
 
 ### E-mail (recuperação de senha)
 
@@ -489,6 +605,63 @@ tools/
   pg-portable.ps1            # PostgreSQL portátil (start/stop/status) sem Docker
 ```
 
+## Coleta mensal automática (Hangfire)
+
+O site executa a coleta completa de **carros e motos no dia 1 às 03h, no fuso
+America/Sao_Paulo**, incluindo marcas, modelos e anos novos. A primeira competência
+é o mês seguinte ao primeiro startup com `ColetaMensal:Habilitada=true` (padrão).
+Esse marco fica gravado no PostgreSQL: reiniciar ou publicar novamente não o altera.
+Não há carga automática retroativa de meses anteriores.
+
+O Hangfire usa a conexão `FipeDb`, com suas tabelas no schema `hangfire`; as migrations
+do aplicativo criam `ColetaMensalConfiguracoes` e `ColetasMensais` para elegibilidade,
+competência, referência, tentativas, estado e progresso. O usuário do banco precisa
+poder criar o schema do Hangfire, como já ocorre com as migrations da aplicação.
+
+Se a tabela do mês ainda não estiver publicada ou a coleta falhar, o site tenta
+novamente às 03h do próximo dia, até o fim daquela competência. Execuções incompletas
+ficam registradas; preços já obtidos, inclusive ausências confirmadas pela fonte,
+são preservados. Erros de rede ou bloqueios não são gravados como ausência de preço.
+Cada tentativa redescobre o catálogo na referência original e consulta só os preços
+faltantes. Uma coleta completa pode durar dias no limite compartilhado de 0,6 req/s.
+O progresso registra veículos percorridos, preços consultados e etapas com falha
+na tentativa atual; o total coletado permanece nas tabelas de preços.
+
+Há um único worker na fila `coleta` e um advisory lock no PostgreSQL para impedir
+coletas mensais sobrepostas entre instâncias. O job compartilha o limitador e as
+pausas por HTTP 429 com as consultas do próprio site. O coletor de console continua
+disponível, mas seus limitadores são independentes: evite executá-lo durante o job.
+
+Ao iniciar depois do horário agendado, o site recupera apenas o mês corrente elegível.
+Um job interrompido em execução é recuperado pelo Hangfire com sua competência
+original, mesmo após a virada do mês. Uma execução que já começou pode terminar
+depois dessa virada; novas tentativas automáticas do mês encerrado são suspensas.
+Uma verificação antiga que estava na fila considera somente o mês corrente.
+
+Para operar localmente:
+
+```powershell
+.\tools\pg-portable.ps1 start
+dotnet run --project src/FipeDados.Web
+```
+
+Mantenha o PostgreSQL **e o site** em execução. O script só inicia o banco; não inicia
+o agendador. Em `Development`, acesse `/hangfire` por localhost para acompanhar os
+jobs, disparar a verificação ou repetir uma execução que falhou. O painel recusa
+acessos remotos e não é registrado em produção; nesse ambiente acompanhe os logs
+do serviço `web` e o estado em `ColetasMensais`. A verificação manual respeita a
+elegibilidade e o limite diário; repetir explicitamente um job de coleta com falha
+pelo painel permite tentar de novo no mesmo dia, enquanto a competência estiver aberta.
+
+Para suspender, configure `ColetaMensal__Habilitada=false` e reinicie todas as
+instâncias do site. No Docker, use `COLETA_MENSAL_HABILITADA=false` no `.env` ou
+`.env.vps` e recrie o serviço `web`. Isso preserva os dados e os jobs; ao reabilitar,
+o Hangfire recupera os trabalhos pendentes conforme as regras acima.
+O serviço diário de atualização das referências continua funcionando.
+
+Os testes do job usam relógio controlado, API simulada e schemas PostgreSQL
+temporários, incluindo o storage do Hangfire. Não realizam coleta contra a Fipe.
+
 ## Testes
 
 ```bash
@@ -502,6 +675,8 @@ variável, os testes que dependem do PostgreSQL são ignorados. A integração d
 HTML inicial, metadados, paginação, sitemaps, respostas 404 e ausência de coleta na Fipe.
 A de contas percorre cadastro, login, `ReturnUrl` externo, plano sem anúncios, troca e
 recuperação de senha, bloqueio por tentativas, exclusão e logout sem token.
+`DesempenhoTests` garante que as páginas de conteúdo não abrem circuito, vêm do OutputCache
+e só carregam a ilha interativa quando o histórico está incompleto.
 
 `tools/smoke.cs` faz uma verificação rápida contra a API real da Fipe (não precisa de banco):
 
@@ -530,3 +705,38 @@ fica em `logs/live-smoke-results.json`; use de 1 a 5 veículos e evite executar 
 em paralelo, pois processos distintos têm limitadores independentes.
 O modo `--new` salva o relatório em `logs/live-smoke-new-results.json` e mantém no banco
 a combinação real de modelo/ano encontrada na fonte.
+
+## Desempenho e teste de carga
+
+- **Render mode:** roteamento em SSR estático com navegação aprimorada. Só `Explorar`
+  (`/consultar-tabela-fipe`), `Comparar` e as ilhas marcadas com `@rendermode` abrem
+  circuito Blazor. Home, catálogo, marca, modelo, veículo e páginas institucionais vêm
+  prontas do servidor.
+- **OutputCache (`Desempenho/PaginaCache.cs`):** páginas de conteúdo ficam 10 minutos em
+  cache para visitantes anônimos, variando só por `tipo` e `pagina`. Veículo com histórico
+  incompleto (ilha interativa) não é armazenado.
+- **Fila da Fipe:** no máximo `Fipe:MaxFilaEspera` (20) consultas esperando; acima disso a
+  página avisa e oferece nova tentativa. Uma coleta por veículo de cada vez; a coleta mensal
+  não entra no teto.
+- **Banco:** o pool do Npgsql fica em 40 conexões quando a connection string não define
+  `Maximum Pool Size`, abaixo do limite padrão de 100 do PostgreSQL.
+- **Métricas:** `GET /health/carga` (só chamada direta ao contêiner; pelo Nginx responde 404)
+  devolve circuitos ativos, fila da Fipe, coletas em andamento, memória e threads. Os mesmos
+  valores estão no medidor `FipeDados` para `dotnet-counters`. Na VPS:
+
+```bash
+curl -s 127.0.0.1:8082/health/carga
+```
+
+O teste de carga (`tools/FipeDados.Carga`) simula usuários navegando pelas páginas do
+sitemap com pausa de leitura e abre circuitos Blazor reais na página de consulta (SignalR
++ blazorpack), confirmando cada render. Não dispara consultas à Fipe. Rode contra uma cópia
+publicada em Release, com a coleta mensal desligada:
+
+```bash
+dotnet run -c Release --project tools/FipeDados.Carga -- --alvo http://localhost:5090 --usuarios 1000 --circuitos 200 --rampa 60 --duracao 120 --pausa 2-8
+```
+
+Parâmetros: `--usuarios` (navegação HTTP), `--circuitos`, `--rampa` e `--duracao` em
+segundos, `--pausa min-max` em segundos entre cliques e `--veiculos` (URLs lidas do sitemap).
+`CARGA_DEBUG=1` mostra o passo a passo de cada circuito.

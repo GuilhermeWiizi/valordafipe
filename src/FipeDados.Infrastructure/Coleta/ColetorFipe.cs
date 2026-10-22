@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
-namespace FipeDados.Scraper;
+namespace FipeDados.Infrastructure.Coleta;
 
 /// <summary>
 /// Percorre o catálogo da Fipe (tipo → marca → modelo → ano) reaproveitando os serviços do
@@ -40,6 +40,33 @@ public class ColetorFipe
     private int _itensPulados;
     private int _veiculos;
     private int _precosConsultados;
+    private int? _codigoTabela;
+    private CatalogoReferenciaSync CatalogoReferencia => new(_dbFactory, _fipe);
+    private Func<ProgressoColeta, Task>? _progresso;
+    private Func<Task>? _verificarLock;
+
+    public async Task<ProgressoColeta> ExecutarReferenciaAsync(int codigoTabela, Func<ProgressoColeta, Task> progresso, Func<Task> verificarLock, CancellationToken ct)
+    {
+        _codigoTabela = codigoTabela;
+        _progresso = progresso;
+        _verificarLock = verificarLock;
+        using var semTeto = FipeRequestGate.SemTeto();
+        _relogio.Start();
+        foreach (var tipo in new[] { TipoVeiculo.Carro, TipoVeiculo.Moto })
+        {
+            IReadOnlyList<ItemSelecao> marcas = [];
+            if (!await TentarAsync($"marcas de {tipo}", async () =>
+            {
+                marcas = await CatalogoReferencia.MarcasAsync(codigoTabela, tipo, ct);
+                return true;
+            }, ct)) continue;
+            for (var i = 0; i < marcas.Count; i++)
+                await ColetarMarcaAsync(tipo, marcas[i], i + 1, marcas.Count, ct);
+        }
+        var resumo = new ProgressoColeta(_veiculos, _precosConsultados, _itensPulados);
+        await progresso(resumo);
+        return resumo;
+    }
 
     public ColetorFipe(IDbContextFactory<FipeDbContext> dbFactory, IFipeApiClient fipe, ICatalogService catalogo,
         IPrecoService precos, IOptions<ScraperOptions> opt, IOptions<FipeApiOptions> fipeOpt, ILogger<ColetorFipe> logger)
@@ -56,6 +83,7 @@ public class ColetorFipe
     public async Task ExecutarAsync(CancellationToken ct)
     {
         var tipos = TiposSelecionados();
+        using var semTeto = FipeRequestGate.SemTeto();
         _relogio.Start();
         _logger.LogInformation("Coleta iniciada: tipos={Tipos}, marca={Marca}, meses de preço={Meses}, {Rps} req/s.",
             string.Join(",", tipos), Vazio(_opt.Marca) ? "todas" : _opt.Marca, _opt.MesesPreco, _fipeOpt.RequestsPerSecond);
@@ -104,7 +132,9 @@ public class ColetorFipe
         IReadOnlyList<ItemSelecao> modelos = [];
         var ok = await TentarAsync($"modelos de {marca.Nome}", async () =>
         {
-            modelos = await _catalogo.ObterModelosAsync(marca.Id, ct);
+            modelos = _codigoTabela is { } tabela
+                ? await CatalogoReferencia.ModelosAsync(tabela, marca.Id, ct)
+                : await _catalogo.ObterModelosAsync(marca.Id, ct);
             return true;
         }, ct);
         if (!ok) return;
@@ -118,25 +148,32 @@ public class ColetorFipe
             IReadOnlyList<ItemSelecao> anos = [];
             ok = await TentarAsync($"anos de {marca.Nome} {modelo.Nome}", async () =>
             {
-                anos = await _catalogo.ObterAnosAsync(modelo.Id, ct);
+                anos = _codigoTabela is { } tabela
+                    ? await CatalogoReferencia.AnosAsync(tabela, modelo.Id, ct)
+                    : await _catalogo.ObterAnosAsync(modelo.Id, ct);
                 return true;
             }, ct);
             if (!ok) continue;
             _veiculos += anos.Count;
 
-            if (_opt.MesesPreco > 0)
+            if (_codigoTabela is not null || _opt.MesesPreco > 0)
             {
                 foreach (var ano in anos)
                 {
                     await TentarAsync($"preço de {marca.Nome} {modelo.Nome} {ano.Nome}", async () =>
                     {
-                        var r = await _precos.ColetarPrecosAsync(ano.Id, _opt.MesesPreco, ct);
+                        var r = _codigoTabela is { } tabela
+                            ? await _precos.ColetarPrecoReferenciaAsync(ano.Id, tabela, ct)
+                            : await _precos.ColetarPrecosAsync(ano.Id, _opt.MesesPreco, ct);
                         _precosConsultados += r.Consultados;
                         if (r.Falha is not null) ExceptionDispatchInfo.Throw(r.Falha); // 429 x demais falhas
                         return true;
                     }, ct);
                 }
             }
+
+            if (_progresso is not null)
+                await _progresso(new(_veiculos, _precosConsultados, _itensPulados));
 
             if (_relogio.Elapsed - _ultimoProgresso >= IntervaloProgresso)
             {
@@ -160,6 +197,8 @@ public class ColetorFipe
         var tentativa = 0;
         while (true)
         {
+            // Fora do retry: perder a sessão que sustenta o lock deve abortar esta execução.
+            if (_verificarLock is not null) await _verificarLock();
             try
             {
                 if (await acao())
@@ -281,3 +320,5 @@ public class ColetorFipe
 
     private static bool Vazio(string? s) => string.IsNullOrWhiteSpace(s);
 }
+
+public sealed record ProgressoColeta(int Veiculos, int PrecosConsultados, int ItensComFalha);

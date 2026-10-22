@@ -1,5 +1,6 @@
 @page "/"
 @using System.Globalization
+@attribute [OutputCache(PolicyName = PaginaCache.Politica)]
 @inject IRankingService Ranking
 @inject ILogger<Home> Logger
 
@@ -14,46 +15,47 @@
     </AnuncioMock>
 </section>
 <section class="market-section" aria-labelledby="ranking-title">
-    <div class="section-heading"><div><div class="page-eyebrow">MOVIMENTOS DO MÊS</div><h2 id="ranking-title">Quem subiu. Quem caiu.</h2></div><div class="segmented-control" role="group" aria-label="Filtrar ranking por tipo"><button class="@(tipo is null ? "selected" : "")" aria-pressed="@(tipo is null)" @onclick="() => Filtrar(null)">Todos</button><button class="@(tipo == TipoVeiculo.Carro ? "selected" : "")" aria-pressed="@(tipo == TipoVeiculo.Carro)" @onclick="() => Filtrar(TipoVeiculo.Carro)"><Icon Name="car" Size="16" /> Carros</button><button class="@(tipo == TipoVeiculo.Moto ? "selected" : "")" aria-pressed="@(tipo == TipoVeiculo.Moto)" @onclick="() => Filtrar(TipoVeiculo.Moto)"><Icon Name="bike" Size="16" /> Motos</button></div></div>
+    <div class="section-heading"><div><div class="page-eyebrow">MOVIMENTOS DO MÊS</div><h2 id="ranking-title">Quem subiu. Quem caiu.</h2></div><nav class="segmented-control" aria-label="Filtrar ranking por tipo"><a class="@(tipo is null ? "selected" : "")" aria-current="@(tipo is null ? "true" : null)" href="@Filtro(null)">Todos</a><a class="@(tipo == TipoVeiculo.Carro ? "selected" : "")" aria-current="@(tipo == TipoVeiculo.Carro ? "true" : null)" href="@Filtro(TipoVeiculo.Carro)"><Icon Name="car" Size="16" /> Carros</a><a class="@(tipo == TipoVeiculo.Moto ? "selected" : "")" aria-current="@(tipo == TipoVeiculo.Moto ? "true" : null)" href="@Filtro(TipoVeiculo.Moto)"><Icon Name="bike" Size="16" /> Motos</a></nav></div>
     @if (erro)
     {
-        <div class="notice error-notice" role="alert"><Icon Name="info" /><span>Não foi possível carregar o ranking.</span><button class="text-button" @onclick="Carregar">Tentar novamente</button></div>
+        <div class="notice error-notice" role="alert"><Icon Name="info" /><span>Não foi possível carregar o ranking.</span><a class="text-button" href="@Filtro(tipo)">Tentar novamente</a></div>
     }
     else
     {
-        <div class="rankings-grid" aria-busy="@carregando"><RankingCard Alta="true" Carregando="carregando" SemComparacao="@(ranking?.VeiculosComparados == 0)" Itens="@(ranking?.Altas ?? [])" /><RankingCard Alta="false" Carregando="carregando" SemComparacao="@(ranking?.VeiculosComparados == 0)" Itens="@(ranking?.Baixas ?? [])" /></div>
-        @if (!carregando && ranking?.VeiculosComparados > 0)
+        <div class="rankings-grid"><RankingCard Alta="true" Carregando="false" SemComparacao="@(ranking?.VeiculosComparados == 0)" Itens="@(ranking?.Altas ?? [])" /><RankingCard Alta="false" Carregando="false" SemComparacao="@(ranking?.VeiculosComparados == 0)" Itens="@(ranking?.Baixas ?? [])" /></div>
+        @if (ranking?.VeiculosComparados > 0)
         {
             <AnuncioMock Posicao="home-entre-rankings" />
         }
-        <BrandDepreciationRanking Itens="@(ranking?.MarcasComMaiorDesvalorizacao ?? [])" Referencia="ranking?.Referencia" Tipo="tipo" Carregando="carregando" SemComparacao="@(ranking?.VeiculosComparados == 0)" />
+        <BrandDepreciationRanking Itens="@(ranking?.MarcasComMaiorDesvalorizacao ?? [])" Referencia="ranking?.Referencia" Tipo="tipo" Carregando="false" SemComparacao="@(ranking?.VeiculosComparados == 0)" />
         <p class="ranking-disclaimer"><Icon Name="info" Size="15" /><span>Ranking da nossa base, que pode ter cobertura parcial. Só entram veículos com preço válido nos dois meses; cada ano e versão é comparado separadamente. @(ranking?.Referencia is { } mes ? $"Referência: {mes.ToString("MMMM/yyyy", Pt)} × {mes.AddMonths(-1).ToString("MMMM/yyyy", Pt)}." : "Aguardando tabelas de referência.")</span></p>
     }
 </section>
-@if (!carregando && !erro && ranking?.VeiculosComparados > 0)
+@if (!erro && ranking?.VeiculosComparados > 0)
 {
     <AnuncioMock Posicao="home-apos-rankings" />
 }
 <section class="explore-banner"><span class="banner-icon"><Icon Name="search" Size="25" /></span><div><h3>Tem um veículo em mente?</h3><p>Encontre o preço atual e veja como ele mudou ao longo do tempo.</p></div><a class="btn btn-outline-primary" href="consultar-tabela-fipe">Fazer uma consulta <Icon Name="arrow" Size="17" /></a></section>
 @code {
     private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-BR");
-    [PersistentState] public RankingMensal? InitialRanking { get; set; }
+    // SSR estático: o filtro é um link (?tipo=carros|motos), então cada variação vai pronta para o OutputCache.
+    [SupplyParameterFromQuery(Name = "tipo")] public string? TipoQuery { get; set; }
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
     private RankingMensal? ranking;
     private TipoVeiculo? tipo;
-    private bool carregando = true, erro;
-    private int versao;
-    protected override async Task OnInitializedAsync()
+    private bool erro;
+    protected override async Task OnParametersSetAsync()
     {
-        if (InitialRanking is not null) { ranking = InitialRanking; carregando = false; }
-        else { await Carregar(); InitialRanking = ranking; }
+        tipo = CatalogPaths.ParseType(TipoQuery);
+        erro = false;
+        try { ranking = await Ranking.ObterMensalAsync(tipo); }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Falha ao carregar ranking mensal.");
+            ranking = null;
+            erro = true;
+            PaginaCache.NaoArmazenar(HttpContext);
+        }
     }
-    private async Task Filtrar(TipoVeiculo? valor) { if (tipo == valor) return; tipo = valor; await Carregar(); }
-    private async Task Carregar()
-    {
-        var requisicao = ++versao;
-        carregando = true; erro = false; ranking = null;
-        try { var resultado = await Ranking.ObterMensalAsync(tipo); if (requisicao == versao) ranking = resultado; }
-        catch (Exception ex) { Logger.LogError(ex, "Falha ao carregar ranking mensal."); if (requisicao == versao) erro = true; }
-        finally { if (requisicao == versao) carregando = false; }
-    }
+    private static string Filtro(TipoVeiculo? valor) => (valor is { } t ? $"/?tipo={CatalogPaths.Type(t)}" : "/") + "#ranking-title";
 }

@@ -1,6 +1,7 @@
 @page "/conta"
 @attribute [Authorize]
 @inject UsuarioAtual UsuarioAtual
+@inject IOptions<PagamentosOptions> Pagamentos
 
 <SeoMetadata Title="Minha conta | VALORDAFIPE" Description="Dados de acesso e plano da sua conta na VALORDAFIPE." Path="@ContaUrls.MinhaConta" NoIndex="true" />
 <div class="explore-heading"><h1>Minha <span>conta.</span></h1><p>Seus dados de acesso e o plano da conta.</p></div>
@@ -27,7 +28,12 @@
             else
             {
                 <strong class="plan-badge">Gratuito</strong>
-                <p>Acesso completo às consultas, rankings e comparações. O plano sem anúncios estará disponível em breve.</p>
+                <p>Acesso completo às consultas, rankings e comparações. Conheça os planos para usar o site sem anúncios.</p>
+            }
+            <p><a href="/sem-anuncios">Contratar ou renovar plano</a> · <a href="/conta/pagamentos">Meus pagamentos</a></p>
+            @if (Pagamentos.Value.Administrador(HttpContext.User))
+            {
+                <p><a href="/conta/admin/pagamentos">Acompanhar pagamentos</a></p>
             }
         </section>
         <section class="account-panel" aria-labelledby="conta-sessao">

@@ -1,4 +1,4 @@
-namespace FipeDados.Scraper;
+namespace FipeDados.Infrastructure.Coleta;
 
 /// <summary>Configuração do coletor em lote (seção "Scraper" do appsettings ou linha de comando).</summary>
 public class ScraperOptions
