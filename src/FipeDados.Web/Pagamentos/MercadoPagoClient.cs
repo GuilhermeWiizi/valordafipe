@@ -63,9 +63,13 @@ public sealed class MercadoPagoClient(HttpClient http, IOptions<MercadoPagoOptio
         object payer = !o.Producao && !string.IsNullOrWhiteSpace(o.NomePagadorTeste)
             ? new { email = pedido.EmailPagador, first_name = o.NomePagadorTeste.Trim() }
             : new { email = pedido.EmailPagador };
+        // Sem items, o extrato do Mercado Pago mostra "Produto sem nome".
+        var titulo = $"VALORDAFIPE - Plano {pedido.PlanoNome} sem anúncios";
         var body = new
         {
             type = "online", total_amount = valor, external_reference = pedido.Id.ToString("D"), processing_mode = "automatic",
+            description = titulo,
+            items = new[] { new { title = titulo, description = $"Acesso sem anúncios por {pedido.Meses} {(pedido.Meses == 1 ? "mês" : "meses")}", unit_price = valor, quantity = 1 } },
             transactions = new { payments = new[] { new { amount = valor, payment_method = new { id = "pix", type = "bank_transfer" }, expiration_time = "P1D" } } },
             payer
         };

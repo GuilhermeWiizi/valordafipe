@@ -75,7 +75,7 @@ public class MercadoPagoTests
     public async Task ClienteHttp_EnviaDadosPersistidosENormalizaRespostaOrders()
     {
         var o = Config();
-        var pedido = new PedidoPix { Id = Guid.NewGuid(), Valor = 27.90m, EmailPagador = "cliente@example.com", ChaveIdempotencia = Guid.NewGuid().ToString("D") };
+        var pedido = new PedidoPix { Id = Guid.NewGuid(), Valor = 27.90m, PlanoNome = "Trimestral", Meses = 3, EmailPagador = "cliente@example.com", ChaveIdempotencia = Guid.NewGuid().ToString("D") };
         var handler = new HttpFake(async request =>
         {
             Assert.Equal("Bearer", request.Headers.Authorization!.Scheme);
@@ -87,6 +87,12 @@ public class MercadoPagoTests
             Assert.Equal(pedido.Id.ToString("D"), body.RootElement.GetProperty("external_reference").GetString());
             Assert.Equal("27.90", body.RootElement.GetProperty("total_amount").GetString());
             Assert.Equal("automatic", body.RootElement.GetProperty("processing_mode").GetString());
+            Assert.Equal("VALORDAFIPE - Plano Trimestral sem anúncios", body.RootElement.GetProperty("description").GetString());
+            var item = body.RootElement.GetProperty("items")[0];
+            Assert.Equal("VALORDAFIPE - Plano Trimestral sem anúncios", item.GetProperty("title").GetString());
+            Assert.Equal("Acesso sem anúncios por 3 meses", item.GetProperty("description").GetString());
+            Assert.Equal("27.90", item.GetProperty("unit_price").GetString());
+            Assert.Equal(1, item.GetProperty("quantity").GetInt32());
             var pagamento = body.RootElement.GetProperty("transactions").GetProperty("payments")[0];
             Assert.Equal("P1D", pagamento.GetProperty("expiration_time").GetString());
             Assert.Equal("pix", pagamento.GetProperty("payment_method").GetProperty("id").GetString());
