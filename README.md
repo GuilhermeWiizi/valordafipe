@@ -208,11 +208,33 @@ Depois de enviar as alterações do projeto ao Git e executar o deploy, instale 
 
 ```bash
 cd /srv/FipeDados
+chmod +x deploy/nginx/atualizar-bots-verificados.sh
+deploy/nginx/atualizar-bots-verificados.sh
+echo '17 4 * * * root /srv/FipeDados/deploy/nginx/atualizar-bots-verificados.sh >/dev/null' > /etc/cron.d/valordafipe-bots
 cp deploy/nginx/valordafipe.conf /etc/nginx/sites-available/valordafipe.com.br
 ln -s /etc/nginx/sites-available/valordafipe.com.br /etc/nginx/sites-enabled/valordafipe.com.br
 nginx -t && systemctl reload nginx
 curl -sS -D - -o /dev/null -H 'Host: valordafipe.com.br' http://127.0.0.1/robots.txt
 ```
+
+#### Limite por IP contra raspagem
+
+O Nginx limita cada cliente (IPv4, ou prefixo /64 no IPv6) a 2 requisições/s com rajada de 40
+e a 15 conexões simultâneas com o hub do Blazor; acima disso responde `429`. Arquivos estáticos,
+`robots.txt` e sitemaps não contam. A aplicação aplica um segundo limite, um pouco maior
+(seção `LimiteAcesso` do `appsettings.json`), que também vale para acesso direto ao contêiner.
+
+- **Googlebot e Bingbot** ficam isentos pelas faixas de IP publicadas pelo Google e pela
+  Microsoft, nunca pelo User-Agent. O script acima grava `/etc/nginx/valordafipe-bots-verificados.conf`
+  e o cron o atualiza todo dia; a aplicação baixa as mesmas listas sozinha a cada 24 h.
+- **Teste de carga ou outra rede confiável:** descomente a linha de exemplo no bloco `geo` do
+  Nginx e defina `LIMITE_ACESSO_REDE_ISENTA` (CIDR) no `.env.vps`.
+- Se o `TRUSTED_PROXY_IP` estiver errado, a aplicação desliga o próprio limite (senão todos
+  os visitantes contariam como o IP do Nginx) e registra um aviso no log. O Nginx continua limitando.
+- Se o arquivo do site já foi alterado pelo `certbot`, não sobrescreva: copie para ele os blocos
+  `geo`, `map`, `limit_req_zone`/`limit_conn_zone` e as diretivas `limit_*` das `location`.
+- Bloqueios aparecem como `429` no `access.log` do Nginx e na métrica
+  `aspnetcore.rate_limiting.requests` da aplicação.
 
 Instale o arquivo e crie o link somente na configuração inicial. Após o Certbot configurar
 HTTPS, edite o arquivo já instalado para ajustes; copiar novamente o modelo HTTP por cima

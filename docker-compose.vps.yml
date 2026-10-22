@@ -34,6 +34,8 @@ services:
       Fipe__ParallelumHabilitada: ${FIPE_PARALLELUM_HABILITADA:-false}
       ASPNETCORE_HTTP_PORTS: "8080"
       ReverseProxy__KnownProxies__0: ${TRUSTED_PROXY_IP:-127.0.0.1}
+      LimiteAcesso__Habilitado: ${LIMITE_ACESSO_HABILITADO:-true}
+      LimiteAcesso__RedesIsentas__0: ${LIMITE_ACESSO_REDE_ISENTA:-}
       TZ: America/Sao_Paulo
       ConnectionStrings__FipeDb: "Host=fipedados-db;Port=5432;Database=fipedados;Username=fipe;Password=${POSTGRES_PASSWORD:?Configure POSTGRES_PASSWORD em .env.vps}"
       Seo__SiteUrl: ${SEO_SITE_URL:-https://valordafipe.com.br}

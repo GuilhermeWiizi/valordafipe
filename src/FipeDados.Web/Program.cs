@@ -7,6 +7,7 @@ using FipeDados.Web.Contas;
 using FipeDados.Web.Pagamentos;
 using FipeDados.Web.Deployment;
 using FipeDados.Web.Desempenho;
+using FipeDados.Web.Protecao;
 using FipeDados.Web.Seo;
 using FipeDados.Web.Jobs;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -37,6 +38,7 @@ builder.Services.AddOutputCache(options =>
     PaginaCache.Configurar(options);
 });
 builder.Services.AddMetricasCarga();
+builder.Services.AddLimiteAcesso();
 builder.Services.AddResponseCompression(options =>
 {
     options.EnableForHttps = true;
@@ -56,6 +58,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 var app = builder.Build();
 app.UseOrigemDaRequisicao();
 app.UseForwardedHeaders();
+app.UseLimiteAcesso();
 app.UseResponseCompression();
 
 // Aplica migrations no startup (conveniência em desenvolvimento).
