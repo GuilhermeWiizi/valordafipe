@@ -31,7 +31,7 @@
         <span class="compare-versus" aria-hidden="true"><Icon Name="compare" Size="20" /></span>
         <VehiclePicker Label="Veículo B" Letter="B" Description="A alternativa para comparar." ColorClass="color-b" Disabled="carregando" ValueChanged="SelecionarB" InitialSelection="presetB" />
     </div>
-    <div class="compare-action-bar"><span><Icon Name="clock" Size="15" /> Preços que faltarem serão consultados na Fipe automaticamente.</span><button class="btn btn-primary" disabled="@(carregando || veiculoA == 0 || veiculoB == 0 || veiculoA == veiculoB)" @onclick="CompararSelecionados"><Icon Name="compare" Size="18" /> Comparar veículos <Icon Name="arrow" Size="17" /></button></div>
+    <div class="compare-action-bar"><button class="btn btn-primary" disabled="@(carregando || veiculoA == 0 || veiculoB == 0 || veiculoA == veiculoB)" @onclick="CompararSelecionados"><Icon Name="compare" Size="18" /> Comparar veículos <Icon Name="arrow" Size="17" /></button></div>
     @if (veiculoA != 0 && veiculoA == veiculoB) { <div class="notice" role="status"><Icon Name="info" Size="17" /> Escolha dois veículos diferentes. Você também pode comparar anos ou versões do mesmo modelo.</div> }
 </div>
 @if (carregando)
@@ -91,10 +91,6 @@
             </tbody></table></div><p class="compare-table-note">— indica que falta preço em uma das datas necessárias para esse indicador. Valores da Tabela Fipe são referências de mercado.</p></section>
         }
     </section>
-}
-else if (!carregando && erro is null)
-{
-    <section class="compare-intro"><span class="compare-intro-icon"><Icon Name="chart" Size="27" /></span><div><h3>Quem preservou melhor o valor?</h3><p>Escolha os veículos acima para descobrir. Compare curvas, ganhos e perdas sem perder a perspectiva do período.</p></div><span class="compare-intro-tag">Até 24 referências mensais</span></section>
 }
 
 <OfertaSemAnuncios Evento="@eventoOferta" ResultadoDisponivel="@(!carregando && comparacao is not null && erro is null && avisoColeta is null)"

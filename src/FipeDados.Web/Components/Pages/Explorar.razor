@@ -30,7 +30,6 @@
     @if (erro is not null) { <div class="notice error-notice" role="alert"><Icon Name="info" /><span>@erro</span><button class="text-button" @onclick="RepetirEtapa">Tentar novamente</button></div> }
     <div class="search-panel-footer"><div class="selection-progress" aria-live="polite"><span class="progress-track"><span style="@($"width: {(veiculoId > 0 ? 100 : modeloId > 0 ? 66 : marcaId > 0 ? 33 : 0)}%")"></span></span><span>@(veiculoId > 0 ? "Tudo pronto para consultar" : "Selecione marca, modelo e ano")</span></div><button class="btn btn-primary" disabled="@(veiculoId == 0 || abrindoVeiculo)" @onclick="VerVeiculo">Ver preços e variação <Icon Name="arrow" Size="18" /></button></div>
 </section>
-<div class="search-context"><Icon Name="info" Size="16" /><span>Ao abrir o veículo, os meses que faltam no histórico são consultados automaticamente na Fipe. Os preços já disponíveis são reutilizados.</span></div>
 <section class="explore-benefits" aria-label="O que você vai encontrar">
     <div><span class="benefit-icon"><Icon Name="car" Size="22" /></span><h3>O valor de referência</h3><p>O preço da Tabela Fipe para a combinação exata de modelo e ano.</p></div>
     <div><span class="benefit-icon"><Icon Name="chart" Size="22" /></span><h3>O movimento dos preços</h3><p>Até 24 meses de histórico para enxergar tendências com mais clareza.</p></div>
