@@ -48,6 +48,15 @@ public class MercadoPagoTests
         Assert.Null(MercadoPagoWebhook.Validar("ts=1,v1=zz", req, id, secret));
         Assert.Null(MercadoPagoWebhook.Validar(signature, req, "../../users/me", secret));
         Assert.Null(MercadoPagoWebhook.Validar(signature + ",ts=1742505638683", req, id, secret));
+        // Orders assina com o id original (maiúsculas); a chave de deduplicação é a mesma das duas formas.
+        var original = "ts=1792698281,v1=" + Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret),
+            Encoding.UTF8.GetBytes($"id:{id};request-id:{req};ts:1792698281;"))).ToLowerInvariant();
+        var chaveOriginal = MercadoPagoWebhook.Validar(original, req, id, secret);
+        Assert.NotNull(chaveOriginal);
+        var minusculo = "ts=1792698281,v1=" + Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret),
+            Encoding.UTF8.GetBytes($"id:{id.ToLowerInvariant()};request-id:{req};ts:1792698281;"))).ToLowerInvariant();
+        Assert.Equal(chaveOriginal, MercadoPagoWebhook.Validar(minusculo, req, id, secret));
+        Assert.Null(MercadoPagoWebhook.Validar(original, req, "ORDOUTRA", secret));
         Assert.False(new MercadoPagoOptions().Configurado);
         var o = Config();
         Assert.True(o.Configurado);

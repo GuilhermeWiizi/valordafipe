@@ -16,12 +16,16 @@ public static class MercadoPagoWebhook
         var timestamps = partes.Where(p => p.Length == 2 && p[0] == "ts").Select(p => p[1]).ToArray();
         var hashes = partes.Where(p => p.Length == 2 && p[0] == "v1").Select(p => p[1]).ToArray();
         if (timestamps.Length != 1 || !Regex.IsMatch(timestamps[0], "^[0-9]{10,13}$") || hashes.Length == 0) return null;
+        // A documentação pede o id em minúsculas, mas as notificações de Orders chegam assinadas com o id original.
         var manifesto = $"id:{dataId!.ToLowerInvariant()};request-id:{requestId};ts:{timestamps[0]};";
-        var esperado = HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(manifesto));
+        var original = $"id:{dataId};request-id:{requestId};ts:{timestamps[0]};";
+        var esperados = new[] { manifesto, original }.Distinct()
+            .Select(m => HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(m))).ToArray();
         foreach (var hash in hashes)
         {
             if (!Regex.IsMatch(hash, "^[a-fA-F0-9]{64}$")) continue;
-            if (CryptographicOperations.FixedTimeEquals(esperado, Convert.FromHexString(hash)))
+            var recebido = Convert.FromHexString(hash);
+            if (esperados.Any(e => CryptographicOperations.FixedTimeEquals(e, recebido)))
                 return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(manifesto)));
         }
         return null;

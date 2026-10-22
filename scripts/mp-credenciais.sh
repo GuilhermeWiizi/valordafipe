@@ -20,8 +20,27 @@ for cmd in curl jq; do
     command -v "$cmd" >/dev/null || { echo "Instale $cmd na VPS." >&2; exit 1; }
 done
 
-read -r -s -p "Access Token (nao aparece na tela): " token; echo
+read -r -s -p "Access Token (nao aparece na tela; Enter mantem o atual): " token; echo
 read -r -s -p "Chave secreta do webhook (Enter mantem a atual): " segredo; echo
+[[ -n "$token" ]] || token=$(grep '^MP_ACCESS_TOKEN=' "$env_file" | cut -d= -f2- || true)
+
+# Confere a chave contra a ultima notificacao registrada pelo log temporario do Nginx, se houver.
+captura=/var/log/nginx/mp-webhook-debug.log
+if [[ -n "$segredo" && -s "$captura" ]]; then
+    linha=$(tail -n 1 "$captura")
+    ts=$(sed -n 's/.*sig="ts=\([0-9]*\).*/\1/p' <<<"$linha")
+    v1=$(sed -n 's/.*v1=\([0-9a-f]*\).*/\1/p' <<<"$linha")
+    req=$(sed -n 's/.*req="\([^"]*\)".*/\1/p' <<<"$linha")
+    id=$(sed -n 's/.*data\.id=\([A-Za-z0-9]*\).*/\1/p' <<<"$linha")
+    confere=false
+    # Orders assina com o id original; a documentacao cita o id em minusculas. Aceita os dois.
+    for candidato in "$id" "${id,,}"; do
+        calc=$(printf '%s' "id:${candidato};request-id:${req};ts:${ts};" | openssl dgst -sha256 -hmac "$segredo" -r | cut -d' ' -f1)
+        [[ "$calc" == "$v1" ]] && confere=true
+    done
+    $confere && echo "Chave confere com a ultima notificacao recebida." \
+        || echo "Aviso: chave NAO confere com a ultima notificacao recebida." >&2
+fi
 if [[ -z "$token" || "$token" =~ [[:space:]] ]]; then
     echo "Access Token vazio ou com espacos." >&2
     exit 1
