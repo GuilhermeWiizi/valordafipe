@@ -8,12 +8,14 @@ using Microsoft.AspNetCore.Components.RenderTree;
 using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.JSInterop;
 
 namespace FipeDados.Tests;
 
 /// <summary>
 /// Ilha <see cref="ColetaHistorico"/> da página (SSR) do veículo: só consulta a Fipe depois de
-/// conectar, repete falhas em segundo plano e atualiza a página ao concluir.
+/// conectar, recorre ao navegador uma vez quando a Fipe falha, repete falhas em segundo plano
+/// e atualiza a página ao concluir.
 /// </summary>
 public class VeiculoAutoHistoryTests
 {
@@ -59,6 +61,7 @@ public class VeiculoAutoHistoryTests
         var consulta = renderer.Dispatcher.InvokeAsync(ilha.Interactive);
         var espera = await ilha.ProximaEspera();
         Assert.Equal(TimeSpan.FromSeconds(filaCheia ? 90 : 30), espera.Atraso);
+        Assert.Equal(1, ilha.ConsultasNoNavegador); // Navegador incompleto: o servidor volta a tentar.
         await renderer.Dispatcher.InvokeAsync(ilha.Interactive);
         Assert.Single(preco.Calls);
         Assert.Equal(0, services.GetRequiredService<TestNavigation>().Refreshes);
@@ -87,19 +90,21 @@ public class VeiculoAutoHistoryTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(1)]
-    public async Task HistoricoExigePlano_NaoRepeteEExibeMesesQueConseguiuSalvar(int mesesSalvos)
+    [InlineData(3)]
+    public async Task FipeNaoResponde_NavegadorCompleta_NaoRepeteNoServidorNemRecarrega(int mesesSalvos)
     {
         using var services = Services();
         await using var renderer = new IslandRenderer(services);
         var preco = services.GetRequiredService<FakePreco>();
-        preco.Complete = _ => Task.FromResult(new ResultadoColeta(mesesSalvos, new FipeAcessoHistoricoException()));
+        preco.Complete = _ => Task.FromResult(new ResultadoColeta(mesesSalvos, new FipeLimiteException(TimeSpan.FromMinutes(1))));
         var ilha = await renderer.Show(veiculoId: 1);
+        ilha.NavegadorCompleta = true;
         // Deve terminar sem entrar na espera de retentativa.
         await renderer.Dispatcher.InvokeAsync(ilha.Interactive).WaitAsync(TimeSpan.FromSeconds(5));
-        await renderer.Dispatcher.InvokeAsync(ilha.Interactive);
         Assert.Single(preco.Calls);
-        Assert.Equal(mesesSalvos, services.GetRequiredService<TestNavigation>().Refreshes);
+        Assert.Equal(1, ilha.ConsultasNoNavegador);
+        // A página já mostra banco + navegador; recarregar descartaria os meses só exibidos.
+        Assert.Equal(0, services.GetRequiredService<TestNavigation>().Refreshes);
     }
 
     [Fact]
@@ -123,6 +128,7 @@ public class VeiculoAutoHistoryTests
         await consulta;
         Assert.True(preco.Token.IsCancellationRequested);
         Assert.Equal(atrasos.Length, preco.Calls.Count);
+        Assert.Equal(1, ilha.ConsultasNoNavegador); // Uma vez por visita: não gasta a cota do visitante a cada retentativa.
         Assert.Equal(0, services.GetRequiredService<TestNavigation>().Refreshes);
     }
 
@@ -146,7 +152,14 @@ public class VeiculoAutoHistoryTests
     private static ServiceProvider Services() => new ServiceCollection().AddLogging()
         .AddSingleton<FakePreco>().AddSingleton<IPrecoService>(s => s.GetRequiredService<FakePreco>())
         .AddSingleton<TestNavigation>().AddSingleton<NavigationManager>(s => s.GetRequiredService<TestNavigation>())
+        .AddSingleton<IJSRuntime, SemJs>()
         .BuildServiceProvider();
+
+    private sealed class SemJs : IJSRuntime
+    {
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) => throw new NotSupportedException();
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) => throw new NotSupportedException();
+    }
 
     // Executa o ciclo real da ilha, sem markup, controlando quando ela "conecta".
 #pragma warning disable BL0006
@@ -157,6 +170,13 @@ public class VeiculoAutoHistoryTests
         protected override Task OnAfterRenderAsync(bool firstRender) => Task.CompletedTask;
         public Task Interactive() => base.OnAfterRenderAsync(false);
         public Task<Espera> ProximaEspera() => esperas.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        public bool NavegadorCompleta { get; set; }
+        public int ConsultasNoNavegador { get; private set; }
+        protected override Task<bool> ConsultarNoNavegadorAsync(CancellationToken ct)
+        {
+            ConsultasNoNavegador++;
+            return Task.FromResult(NavegadorCompleta);
+        }
         protected override Task AguardarNovaTentativaAsync(TimeSpan atraso, CancellationToken ct)
         {
             var espera = new Espera(atraso);
@@ -216,5 +236,6 @@ public class VeiculoAutoHistoryTests
         public Task<DetalheVeiculo?> ObterDetalheAsync(int id, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<ResultadoColeta> ColetarPrecosAsync(int id, int meses, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<ResultadoColeta> ColetarPrecoReferenciaAsync(int id, int tabela, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<ConsultaNavegador?> ObterConsultaNavegadorAsync(int id, int meses, CancellationToken ct = default) => throw new NotSupportedException();
     }
 }

@@ -29,17 +29,32 @@
     protected override void OnParametersSet()
     {
         linhas = HistoricoMensalCalculator.Calcular(Detail.Serie);
-        // Rótulos já formatados em pt-BR: o navegador só recalcula o acumulado do período.
-        serieJson = JsonSerializer.Serialize(linhas.Select(l => new
-        {
-            d = l.Data.ToString("yyyy-MM"),
-            r = l.Data.ToString("MMM/yy", Pt),
-            m = l.Data.ToString("MM/yyyy"),
-            v = l.Valor,
-            pm = l.VariacaoMesPct,
-            vm = l.VariacaoMesValor
-        }));
+        serieJson = JsonSerializer.Serialize(SerieGrafico(linhas));
     }
+
+    /// <summary>Pontos do &lt;fipe-historico&gt;. Rótulos já formatados em pt-BR: o navegador só recalcula o acumulado do período.</summary>
+    internal static object[] SerieGrafico(IReadOnlyList<LinhaHistorico> linhas) => linhas.Select(l => (object)new
+    {
+        d = l.Data.ToString("yyyy-MM"),
+        r = l.Data.ToString("MMM/yy", Pt),
+        m = l.Data.ToString("MM/yyyy"),
+        v = l.Valor,
+        pm = l.VariacaoMesPct,
+        vm = l.VariacaoMesValor
+    }).ToArray();
+
+    /// <summary>Linhas da tabela já formatadas, na ordem exibida (mais recente primeiro), para a série montada no navegador.</summary>
+    internal static object[] LinhasTabela(IReadOnlyList<LinhaHistorico> linhas) => Enumerable.Range(0, linhas.Count).Reverse().Select(i =>
+    {
+        var l = linhas[i];
+        return (object)new
+        {
+            indice = i, mes = l.Mes, valor = Moeda(l.Valor),
+            variacaoPct = Pct(l.VariacaoMesPct), classePct = Cor(l.VariacaoMesPct),
+            variacaoValor = Moeda(l.VariacaoMesValor, true), classeValor = Cor(l.VariacaoMesValor),
+            acumulada = Pct(l.VariacaoAcumuladaPct), classeAcumulada = Cor(l.VariacaoAcumuladaPct)
+        };
+    }).ToArray();
 
     private static string Resumo(IReadOnlyList<LinhaHistorico> linhas) => linhas.Count == 0
         ? "Aguardando preços disponíveis."

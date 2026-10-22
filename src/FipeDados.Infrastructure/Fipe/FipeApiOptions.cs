@@ -4,7 +4,6 @@ namespace FipeDados.Infrastructure.Fipe;
 public class FipeApiOptions
 {
     public const string Section = "Fipe";
-    public bool ParallelumHabilitada { get; set; }
 
     public string BaseUrl { get; set; } = "https://veiculos.fipe.org.br/api/veiculos/";
     public string Referer { get; set; } = "https://veiculos.fipe.org.br/";

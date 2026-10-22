@@ -36,26 +36,32 @@ else
         <ColetaHistorico @rendermode="InteractiveServer" VeiculoId="detalhe.VeiculoId" Meses="MesesHistorico" />
     }
 
+    @if (detalhe.Resumo is { } resumo)
+    {
+        <VehicleSummary Resumo="resumo" />
+    }
+    @if (detalhe.Resumo is not null || historicoIncompleto)
+    {
+        @* Sem preço no banco, o histórico fica à espera dos meses que o navegador consultar. *@
+        <VehicleHistory Detail="detalhe" />
+    }
+
     @if (detalhe.Resumo is { } r)
     {
-        <VehicleSummary Resumo="r" />
-
-        <VehicleHistory Detail="detalhe" />
-
         <div class="cards-stats">
             <div class="stat">
                 <span class="rotulo">Mínimo</span>
-                <span class="valor">@Moeda(r.Minimo)</span>
-                <span class="sub">@r.DataMinimo.ToString("MM/yyyy")</span>
+                <span class="valor" data-estatistica="minimo">@Moeda(r.Minimo)</span>
+                <span class="sub" data-estatistica="data-minimo">@r.DataMinimo.ToString("MM/yyyy")</span>
             </div>
             <div class="stat">
                 <span class="rotulo">Máximo</span>
-                <span class="valor">@Moeda(r.Maximo)</span>
-                <span class="sub">@r.DataMaximo.ToString("MM/yyyy")</span>
+                <span class="valor" data-estatistica="maximo">@Moeda(r.Maximo)</span>
+                <span class="sub" data-estatistica="data-maximo">@r.DataMaximo.ToString("MM/yyyy")</span>
             </div>
             <div class="stat">
                 <span class="rotulo">Média</span>
-                <span class="valor">@Moeda(r.Media)</span>
+                <span class="valor" data-estatistica="media">@Moeda(r.Media)</span>
             </div>
         </div>
 

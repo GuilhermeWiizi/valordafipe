@@ -1,3 +1,4 @@
+using System.Globalization;
 using FipeDados.Core.Entities;
 using FipeDados.Core.Fipe;
 using FipeDados.Core.Models;
@@ -133,6 +134,33 @@ public class PrecoService : IPrecoService
         return await GarantirPrecosAsync(db, veiculo, [tabela], ct, salvarCadaMes: true);
     }
 
+    public async Task<ConsultaNavegador?> ObterConsultaNavegadorAsync(int veiculoId, int meses, CancellationToken ct = default)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync(ct);
+        var veiculo = await CarregarVeiculoAsync(db, veiculoId, ct);
+        if (veiculo is null) return null;
+
+        var tabelas = await UltimasTabelasAsync(db, meses, ct);
+        var codigos = tabelas.Select(t => t.Codigo).ToList();
+        // Meses já gravados, inclusive sem cotação: o navegador não os consulta de novo.
+        var conhecidas = await db.Precos.AsNoTracking()
+            .Where(p => p.VeiculoId == veiculoId && codigos.Contains(p.TabelaReferenciaCodigo))
+            .Select(p => p.TabelaReferenciaCodigo)
+            .ToListAsync(ct);
+        var marca = veiculo.Modelo.Marca;
+        return new ConsultaNavegador(
+            (int)marca.Tipo,
+            marca.CodigoFipe,
+            veiculo.Modelo.CodigoFipe,
+            veiculo.AnoModeloCodigo,
+            veiculo.ZeroKm ? 32000 : (veiculo.Ano ?? 0),
+            (int)veiculo.Combustivel,
+            string.IsNullOrWhiteSpace(veiculo.CodigoFipe) ? null : veiculo.CodigoFipe.Trim(),
+            meses,
+            tabelas.Select(t => new ReferenciaNavegador(t.Codigo, t.Data.ToString("yyyy-MM", CultureInfo.InvariantCulture))).ToList(),
+            conhecidas);
+    }
+
     private static Task<Veiculo?> CarregarVeiculoAsync(FipeDbContext db, int veiculoId, CancellationToken ct)
         => db.Veiculos
             .Include(v => v.Modelo).ThenInclude(m => m.Marca)
@@ -192,8 +220,7 @@ public class PrecoService : IPrecoService
                 AnoNumerico: anoNumerico,
                 CodigoTipoCombustivel: codigoComb,
                 TipoConsulta: usarCodigo ? "codigo" : "tradicional",
-                ModeloCodigoExterno: usarCodigo ? veiculo.CodigoFipe : null,
-                DataReferencia: tabela.Data);
+                ModeloCodigoExterno: usarCodigo ? veiculo.CodigoFipe : null);
 
             FipeValorResponse? resp;
             try

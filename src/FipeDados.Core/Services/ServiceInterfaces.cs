@@ -56,4 +56,10 @@ public interface IPrecoService
 
     /// <summary>Coleta somente a referência indicada, preservando inclusive ausências já confirmadas.</summary>
     Task<ResultadoColeta> ColetarPrecoReferenciaAsync(int veiculoId, int codigoTabela, CancellationToken ct = default);
+
+    /// <summary>
+    /// Lê do banco o que o navegador precisa para consultar na Fipe os meses ausentes dos
+    /// últimos <paramref name="meses"/> meses. Não consulta a Fipe.
+    /// </summary>
+    Task<ConsultaNavegador?> ObterConsultaNavegadorAsync(int veiculoId, int meses, CancellationToken ct = default);
 }

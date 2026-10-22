@@ -1,22 +1,37 @@
+@using System.Globalization
 @using FipeDados.Core.Fipe
 @inject IPrecoService Preco
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 @inject ILogger<ColetaHistorico> Logger
-@implements IDisposable
+@implements IAsyncDisposable
 @* Ilha interativa da página (SSR) do veículo: só existe enquanto faltam meses no histórico.
-   Busca na Fipe depois de conectar e, com meses novos, pede ao servidor a página atualizada. *@
+   Busca na Fipe depois de conectar e, com meses novos, pede ao servidor a página atualizada.
+   Se a Fipe não responder ao servidor, o navegador consulta os meses e a página só os exibe. *@
 
 @if (atualizando)
 {
     <div class="history-update" role="status" aria-live="polite"><span class="small-spinner"></span><p>Consultando na Fipe os meses que faltam no histórico…</p></div>
+}
+else if (consultandoNoNavegador)
+{
+    <div class="history-update" role="status" aria-live="polite"><span class="small-spinner"></span><p>A Fipe não respondeu ao nosso servidor. Consultando os meses que faltam pelo seu navegador…</p></div>
+}
+else if (mesesDoNavegador > 0)
+{
+    <div class="history-update" role="status"><p>@(mesesDoNavegador == 1 ? "1 mês foi consultado" : $"{mesesDoNavegador} meses foram consultados") na Fipe pelo seu navegador. Esses preços aparecem só nesta visita e não ficam salvos.</p></div>
 }
 
 @code {
     [Parameter, EditorRequired] public int VeiculoId { get; set; }
     [Parameter] public int Meses { get; set; } = 24;
 
+    private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-BR");
     private readonly CancellationTokenSource lifetime = new();
+    private HistoricoNavegador? navegador;
     private bool atualizando = true;
+    private bool consultandoNoNavegador;
+    private int mesesDoNavegador;
     private bool iniciada;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -27,6 +42,7 @@
         var token = lifetime.Token;
         var tentativa = 0;
         var temNovosMeses = false;
+        var navegadorTentado = false;
         try
         {
             while (true)
@@ -47,11 +63,17 @@
 
                 token.ThrowIfCancellationRequested();
                 if (atualizando) { atualizando = false; StateHasChanged(); }
-                if (falha is null or FipeAcessoHistoricoException)
+                if (falha is null)
                 {
-                    // Mostra também os meses salvos antes de uma restrição de acesso permanente.
                     if (temNovosMeses) Nav.Refresh();
                     return;
+                }
+
+                // Uma vez por visita: com o histórico completo pelo navegador, o servidor não insiste.
+                if (!navegadorTentado)
+                {
+                    navegadorTentado = true;
+                    if (await ConsultarNoNavegadorAsync(token)) return;
                 }
 
                 // A espera não bloqueia o circuito: navegar e consultar os dados existentes continua possível.
@@ -63,7 +85,58 @@
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
     }
 
+    /// <summary>
+    /// Consulta pelo navegador os meses que o servidor não conseguiu e os exibe na página, sem
+    /// gravar. Devolve verdadeiro quando o histórico ficou completo.
+    /// </summary>
+    protected virtual async Task<bool> ConsultarNoNavegadorAsync(CancellationToken ct)
+    {
+        var detalhe = await Preco.ObterDetalheEmCacheAsync(VeiculoId, ct);
+        if (detalhe is null) return false;
+        navegador ??= new HistoricoNavegador(JS, Preco);
+        consultandoNoNavegador = true;
+        StateHasChanged();
+        try
+        {
+            var resultado = await navegador.CompletarAsync(detalhe, Meses, async atual =>
+            {
+                mesesDoNavegador++;
+                await ExibirAsync(atual, ct);
+            }, ct);
+            return resultado.Completo;
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException)
+        {
+            Logger.LogInformation(ex, "Consulta do histórico do veículo {Id} pelo navegador não concluída.", VeiculoId);
+            return false;
+        }
+        finally
+        {
+            consultandoNoNavegador = false;
+            if (!ct.IsCancellationRequested) StateHasChanged();
+        }
+    }
+
+    private Task ExibirAsync(DetalheVeiculo detalhe, CancellationToken ct)
+    {
+        var linhas = HistoricoMensalCalculator.Calcular(detalhe.Serie);
+        object estatisticas = detalhe.Resumo is { } r
+            ? new Dictionary<string, string>
+            {
+                ["minimo"] = r.Minimo.ToString("C2", Pt), ["data-minimo"] = r.DataMinimo.ToString("MM/yyyy"),
+                ["maximo"] = r.Maximo.ToString("C2", Pt), ["data-maximo"] = r.DataMaximo.ToString("MM/yyyy"),
+                ["media"] = r.Media.ToString("C2", Pt)
+            }
+            : new Dictionary<string, string>();
+        return navegador!.ExibirAsync(VehicleHistory.SerieGrafico(linhas), VehicleHistory.LinhasTabela(linhas), estatisticas, ct);
+    }
+
     protected virtual Task AguardarNovaTentativaAsync(TimeSpan atraso, CancellationToken ct) => Task.Delay(atraso, ct);
 
-    public void Dispose() { lifetime.Cancel(); lifetime.Dispose(); }
+    public async ValueTask DisposeAsync()
+    {
+        lifetime.Cancel();
+        lifetime.Dispose();
+        if (navegador is not null) await navegador.DisposeAsync();
+    }
 }

@@ -5,7 +5,8 @@
 @inject IPrecoService Preco
 @inject ILogger<Comparar> Logger
 @inject OfertaPlano Oferta
-@implements IDisposable
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <SeoMetadata Title="Comparar carros e motos: variação da Tabela Fipe | VALORDAFIPE"
              Description="Compare preços e a valorização ou desvalorização de dois carros ou motos pela Tabela Fipe. Veja as diferenças em reais e percentuais nas mesmas datas."
@@ -111,6 +112,7 @@
     private string? eventoOferta;
     private ComparacaoVeiculos? comparacao;
     private CancellationTokenSource? consulta;
+    private HistoricoNavegador? navegador;
     private readonly CancellationTokenSource lifetime = new();
     private int chaveGrafico;
     private ApexChartOptions<PontoComparacao> opcoes = new();
@@ -173,6 +175,16 @@
             var b = await Preco.ObterDetalheEmCacheAsync(veiculoB, token);
             token.ThrowIfCancellationRequested();
             if (a is null || b is null) { erro = "Um dos veículos não tem dados disponíveis. Tente novamente ou escolha outro veículo."; return; }
+            if (falha is not null)
+            {
+                // A Fipe não respondeu ao servidor: o navegador consulta o que falta, só para exibir.
+                progresso = "A Fipe não respondeu ao nosso servidor. Consultando os meses que faltam pelo seu navegador…";
+                if (!lifetime.IsCancellationRequested) StateHasChanged();
+                var navegadorA = await CompletarNoNavegadorAsync(a, referencias, token);
+                var navegadorB = navegadorA.Completo ? await CompletarNoNavegadorAsync(b, referencias, token) : new(b, 0, false);
+                a = navegadorA.Detalhe; b = navegadorB.Detalhe;
+                if (navegadorA.Completo && navegadorB.Completo) avisoColeta = null;
+            }
             detalheA = a; detalheB = b; mostrarSeletores = false;
             AtualizarComparacao();
             if (registrarConsulta && comparacao is not null && avisoColeta is null)
@@ -229,5 +241,19 @@
     private static string Pct(decimal? valor) => valor?.ToString("+0.00;-0.00;0.00", Pt) + (valor is null ? "—" : "%");
     private static string Moeda(decimal valor, bool sinal = false) => (sinal && valor > 0 ? "+" : "") + valor.ToString("C2", Pt);
     private static string Cor(decimal? valor) => valor > 0 ? "compare-positive" : valor < 0 ? "compare-negative" : "";
-    public void Dispose() { lifetime.Cancel(); consulta?.Dispose(); lifetime.Dispose(); }
+    private async Task<ResultadoNavegador> CompletarNoNavegadorAsync(DetalheVeiculo detalhe, int referencias, CancellationToken token)
+    {
+        navegador ??= new HistoricoNavegador(JS, Preco);
+        try { return await navegador.CompletarAsync(detalhe, referencias, null, token); }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException)
+        {
+            Logger.LogInformation(ex, "Consulta do veículo {Id} pelo navegador não concluída.", detalhe.VeiculoId);
+            return new(detalhe, 0, false);
+        }
+    }
+    public async ValueTask DisposeAsync()
+    {
+        lifetime.Cancel(); consulta?.Dispose(); lifetime.Dispose();
+        if (navegador is not null) await navegador.DisposeAsync();
+    }
 }
