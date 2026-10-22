@@ -11,7 +11,7 @@ public static class VariacaoCalculator
     public static ResumoVariacao? Calcular(IReadOnlyList<PontoPreco> serie)
     {
         var comValor = serie
-            .Where(p => p.Valor.HasValue)
+            .Where(p => p.Valor > 0)
             .OrderBy(p => p.Data)
             .ToList();
 
@@ -32,12 +32,18 @@ public static class VariacaoCalculator
         decimal? PctDesde(PontoPreco? ponto)
             => ponto?.Valor is { } v && v != 0 ? (valorAtual - v) / v * 100m : null;
 
-        // ~12 meses atrás: ponto mais recente cuja data seja <= alvo.
+        // Compara o mesmo mês do ano anterior, sem substituir por outra referência.
         var alvo12 = atual.Data.AddMonths(-12);
-        var ponto12 = comValor.LastOrDefault(p => p.Data <= alvo12);
+        var ponto12 = comValor.LastOrDefault(p => p.Data.Year == alvo12.Year && p.Data.Month == alvo12.Month);
 
-        // Período total = início da janela (~24 meses).
         var primeiro = comValor[0];
+        var meses = (atual.Data.Year - primeiro.Data.Year) * 12 + atual.Data.Month - primeiro.Data.Month;
+        decimal? variacaoPeriodoValor = meses > 0 ? valorAtual - primeiro.Valor!.Value : null;
+        // Normaliza pelo tempo decorrido, inclusive quando há lacunas no histórico.
+        // A taxa composta em % e a diferença média em R$ medem o mesmo período.
+        decimal? mediaMensalPct = meses > 0
+            ? (decimal)(Math.Pow((double)(valorAtual / primeiro.Valor!.Value), 1d / meses) - 1d) * 100m
+            : null;
 
         var min = comValor.MinBy(p => p.Valor!.Value)!;
         var max = comValor.MaxBy(p => p.Valor!.Value)!;
@@ -49,9 +55,18 @@ public static class VariacaoCalculator
             varMesValor,
             varMesPct,
             PctDesde(ponto12),
-            PctDesde(primeiro),
+            meses > 0 ? PctDesde(primeiro) : null,
             min.Valor!.Value, min.Data,
             max.Valor!.Value, max.Data,
-            media);
+            media)
+        {
+            InicioPeriodo = primeiro.Data,
+            FimPeriodo = atual.Data,
+            QuantidadeCotacoes = comValor.Count,
+            VariacaoPeriodoValor = variacaoPeriodoValor,
+            Variacao12mValor = ponto12 is null ? null : valorAtual - ponto12.Valor!.Value,
+            VariacaoMediaMensalValor = meses > 0 ? variacaoPeriodoValor / meses : null,
+            VariacaoMediaMensalPct = mediaMensalPct
+        };
     }
 }

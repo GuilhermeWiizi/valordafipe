@@ -371,8 +371,21 @@ reutilizados. A busca pode levar alguns segundos e mostra um indicador de andame
 - **Visão geral:** ranking dos cinco veículos que mais valorizaram e dos cinco que mais
   desvalorizaram, em percentual, com filtros para carros e motos. Compara a tabela de
   referência mais recente com o mês imediatamente anterior, apenas para combinações
-  de modelo/ano/combustível com preços positivos nos dois meses. A página mostra a
+  de modelo/ano/combustível com preços positivos nos dois meses. Antes do limite de cinco,
+  agrupa pela descrição do modelo, marca e tipo: cada grupo aparece uma vez, com o ano,
+  combustível, preço e link do veículo de maior alta ou maior queda, conforme o ranking.
+  Empates são resolvidos pelo menor ID do veículo. A página mostra a
   referência, a cobertura da base e os estados sem dados; abrir o ranking não dispara coleta.
+  Os rankings de veículos e de marcas são pré-calculados e publicados juntos para Todos,
+  Carros e Motos em `RankingsMensais` (PostgreSQL), por referência. A primeira publicação
+  é preparada no startup após as migrations. `RankingRefreshService` verifica a base a cada
+  10 minutos, independentemente do worker do Hangfire; uma assinatura dos preços dos dois
+  meses e dos dados do catálogo evita repetir as agregações quando nada mudou. A conclusão
+  da coleta também força a atualização. Os três filtros usam a mesma fotografia do banco
+  e são gravados em uma transação, com lock entre processos. Falhas preservam a última
+  publicação e são retentadas pela tarefa periódica. A leitura pública consulta apenas o
+  resultado salvo, inclusive após deploy/reinício, e mostra a referência usada. Antes da
+  primeira publicação, exibe “ranking em preparação”, sem armazenar essa resposta em cache.
 - **Seletores com busca:** marca, modelo e ano têm filtro de texto (sem distinção de
   acentos), navegação por setas e Enter, fechamento com Esc e indicadores de carregamento.
 
@@ -822,7 +835,10 @@ a combinação real de modelo/ano encontrada na fonte.
   prontas do servidor.
 - **OutputCache (`Desempenho/PaginaCache.cs`):** páginas de conteúdo ficam 10 minutos em
   cache para visitantes anônimos, variando só por `tipo` e `pagina`. Veículo com histórico
-  incompleto (ilha interativa) não é armazenado.
+  incompleto (ilha interativa) não é armazenado. A home tem política própria por `tipo`,
+  com a tag `ranking-mensal`, removida após publicar novos rankings. O cache em memória
+  do resultado usa a versão salva no banco, para não reaproveitar publicações anteriores.
+  O navegador continua revalidando a resposta; o resultado pronto é compartilhado no servidor.
 - **Fila da Fipe:** no máximo `Fipe:MaxFilaEspera` (20) consultas esperando; acima disso a
   histórico aguarda e tenta novamente em segundo plano. Uma coleta por veículo de cada vez; a coleta mensal
   não entra no teto.

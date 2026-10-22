@@ -38,6 +38,68 @@ API = "https://veiculos.fipe.org.br/api/veiculos/"
 MONTHS = {m: n for n, m in enumerate(
     "janeiro fevereiro março abril maio junho julho agosto setembro outubro novembro dezembro".split(), 1)}
 MONTHS["marco"] = 3
+PHASES = {"carros_prioritarios": "1. Carros — marcas prioritárias",
+          "demais_carros": "2. Demais carros",
+          "motos_prioritarias": "3. Motos — marcas prioritárias",
+          "demais_motos": "4. Demais motos",
+          "outros": "5. Outros veículos"}
+
+
+def parse_brand_arrays(text):
+    text = re.sub(r"//[^\n]*", "", text)
+    definitions = dict(re.findall(r"string\[\]\s+(\w+)\s*=\s*\[(.*?)\];", text, re.S))
+    token = re.compile(r'"(?P<slug>[a-z0-9-]+)"|\.\.\s*(?P<group>[A-Za-z_]\w*)')
+    def resolve(group, stack=()):
+        if group in stack or group not in definitions:
+            raise ValueError(f"Array de marcas inválido ou circular: {group}")
+        body = definitions[group]
+        if token.sub("", body).replace(",", "").strip():
+            raise ValueError(f"Formato de array de marcas não reconhecido: {group}")
+        result = []
+        for item in token.finditer(body):
+            result.extend([item["slug"]] if item["slug"] else resolve(item["group"], (*stack, group)))
+        return result
+    cars = "CarrosPopulares" if "CarrosPopulares" in definitions else "Carros"
+    return {"Carros": resolve(cars), "Motos": resolve("Motos")}
+
+
+def brand_priorities(args):
+    """Usa o array do site; a cópia JSON permite levar esta pasta para fora do repo."""
+    if hasattr(args, "_brand_priorities"):
+        return args._brand_priorities
+    source = HERE.parents[1] / "src/FipeDados.Core/Models/MarcasRelevantes.cs"
+    if args.marcas_prioritarias:
+        source = args.marcas_prioritarias
+        raw = json.loads(source.read_text(encoding="utf-8-sig"))
+    elif source.exists():
+        raw = parse_brand_arrays(source.read_text(encoding="utf-8-sig"))
+    else:
+        source = HERE / "marcas-prioritarias.json"
+        raw = json.loads(source.read_text(encoding="utf-8-sig"))
+    priorities = {}
+    for kind, group in ((1, "Carros"), (2, "Motos")):
+        values = raw.get(group)
+        if not isinstance(values, list) or not values or any(not isinstance(s, str) or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", s) for s in values) or len(set(values)) != len(values):
+            raise ValueError(f"Lista de marcas prioritárias inválida: {group}")
+        for rank, slug in enumerate(values):
+            priorities[(kind, slug)] = (kind, rank)
+    args._brand_priorities = priorities
+    args._priority_source = str(source)
+    return priorities
+
+
+def order_vehicles(selected, args):
+    priorities = brand_priorities(args) if args.ordem == "populares" else {}
+    for vehicle in selected:
+        vehicle["prioritaria"] = (vehicle["tipo"], vehicle["marca_slug"]) in priorities
+        vehicle["fase"] = (("carros_prioritarios" if vehicle["prioritaria"] else "demais_carros") if vehicle["tipo"] == 1
+                           else ("motos_prioritarias" if vehicle["prioritaria"] else "demais_motos") if vehicle["tipo"] == 2 else "outros")
+    def key(vehicle):
+        priority = priorities.get((vehicle["tipo"], vehicle["marca_slug"]))
+        kind = {1: 0, 2: 1}.get(vehicle["tipo"], 2)
+        return (kind, 0, priority[1], vehicle["id"]) if priority is not None else (kind, 1, 0, vehicle["id"])
+    ordered = sorted(selected, key=key) if priorities else sorted(selected, key=lambda v: v["id"])
+    return ordered[:args.limite_veiculos] if args.limite_veiculos else ordered
 
 
 class SourceError(Exception):
@@ -126,6 +188,15 @@ class Monitor:
         color = {"SALVO": "green", "SYNC": "cyan", "ERRO": "red", "PAUSA": "yellow", "PENDENTE": "yellow"}.get(event, "white")
         self.console.print(f"{stamp[11:19]} [{event}] {message}", style=color, markup=False)
 
+    def snapshot(self, snapshot):
+        path = self.path.with_suffix(".progresso.json")
+        payload = {"atualizado_em": datetime.now().astimezone().isoformat(timespec="seconds"),
+                   **{k: v for k, v in snapshot.items() if k != "marcas"},
+                   "marcas": list(snapshot["marcas"].values())}
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(payload, ensure_ascii=False, default=str, indent=2), encoding="utf-8")
+        temporary.replace(path)
+
     def wait(self, seconds, reason):
         self.event("PAUSA", f"{reason}. Espera de {seconds:.0f}s; Ctrl+C interrompe com segurança.")
         task = self.progress.add_task("Pausa / nova tentativa", total=seconds)
@@ -145,6 +216,8 @@ class Monitor:
         self.progress.stop()
         self.console.print(Panel(" | ".join(f"{k}: {v:,}" for k, v in self.counts.items()) or "Nenhuma alteração", title="Resumo da execução"))
         self.console.print(f"Log completo: {self.path}", markup=False)
+        if self.path.with_suffix(".progresso.json").exists():
+            self.console.print(f"Totais por etapa e marca: {self.path.with_suffix('.progresso.json')}", markup=False)
         self.file.close()
 
 
@@ -214,15 +287,16 @@ class Fipe:
 
 VEHICLES = '''SELECT v."Id" AS id, ma."Tipo" AS tipo, ma."CodigoFipe" AS marca,
 mo."CodigoFipe" AS modelo, v."AnoModeloCodigo" AS ano, v."CodigoFipe" AS codigo_fipe,
+ma."Slug" AS marca_slug, ma."Nome" AS marca_nome,
 ma."Nome" || ' ' || mo."Nome" || ' ' || v."AnoLabel" AS nome
 FROM "Veiculos" v JOIN "Modelos" mo ON mo."Id"=v."ModeloId"
 JOIN "Marcas" ma ON ma."Id"=mo."MarcaId"
 WHERE (%s::integer[] IS NULL OR v."Id"=ANY(%s)) AND (%s=0 OR ma."Tipo"=%s)
-ORDER BY v."Id" LIMIT %s'''
+ORDER BY v."Id"'''
 
 
 def vehicles(db, args):
-    return db.execute(VEHICLES, (args.veiculo, args.veiculo, args.tipo, args.tipo, args.limite_veiculos)).fetchall()
+    return order_vehicles(db.execute(VEHICLES, (args.veiculo, args.veiculo, args.tipo, args.tipo)).fetchall(), args)
 
 
 def references(db, months):
@@ -272,25 +346,144 @@ def save_quote(db, vehicle, reference, value, code):
     return bool(row)
 
 
+METRICS = ("veiculos", "total", "com_preco", "sem_preco", "resolvidos", "pendentes")
+
+
+def sum_coverage(rows):
+    rows = list(rows)
+    return {key: sum(row[key] for row in rows) for key in METRICS}
+
+
+def coverage(db, selected, refs, args):
+    rows = db.execute('''SELECT ma."Tipo" AS tipo, ma."CodigoFipe" AS marca,
+        ma."Nome" AS nome, count(DISTINCT v."Id") AS veiculos,
+        count(*) AS total, count(p."Id") AS consultados,
+        count(p."Id") FILTER (WHERE p."Valor">0) AS com_preco
+        FROM "Veiculos" v JOIN "Modelos" mo ON mo."Id"=v."ModeloId"
+        JOIN "Marcas" ma ON ma."Id"=mo."MarcaId"
+        CROSS JOIN unnest(%s::integer[]) r(codigo)
+        LEFT JOIN "Precos" p ON p."VeiculoId"=v."Id" AND p."TabelaReferenciaCodigo"=r.codigo
+        WHERE v."Id"=ANY(%s::integer[])
+        GROUP BY ma."Tipo", ma."CodigoFipe", ma."Nome"''',
+        ([r["codigo"] for r in refs], [v["id"] for v in selected])).fetchall()
+    metadata = {(v["tipo"], v["marca"]): v for v in selected}
+    brands = {}
+    for row in rows:
+        key = (row["tipo"], row["marca"])
+        row["fase"] = metadata[key]["fase"]
+        row["prioritaria"] = metadata[key]["prioritaria"]
+        row["slug"] = metadata[key]["marca_slug"]
+        row["sem_preco"] = row["consultados"] - row["com_preco"]
+        row["resolvidos"] = row["com_preco"] if args.reconsultar_vazios else row["consultados"]
+        row["pendentes"] = row["total"] - row["resolvidos"]
+        brands[key] = row
+    return {"geral": sum_coverage(rows),
+            "referencias": refs,
+            "prioritarias": sum_coverage(r for r in rows if r["prioritaria"]),
+            "restante": sum_coverage(r for r in rows if not r["prioritaria"]),
+            "etapas": {phase: sum_coverage(r for r in rows if r["fase"] == phase) for phase in PHASES},
+            "marcas": brands}
+
+
+def log_coverage(log, snapshot, message="Cobertura atualizada a partir do banco local"):
+    current = snapshot["geral"]
+    log.event("PROGRESSO", f"{message}: {current['com_preco']:,} com preço, {current['sem_preco']:,} sem preço, {current['pendentes']:,} pendentes / {current['total']:,} combinações",
+              **{k: snapshot[k] for k in ("geral", "prioritarias", "restante", "etapas")})
+    log.snapshot(snapshot)
+
+
 def plan(db, args, log):
     selected, refs = vehicles(db, args), references(db, args.meses)
     if not refs:
         raise ValueError("Banco sem referências; execute collect/run para atualizá-las")
     log.event("PLANO", "Calculando cobertura local e tamanho da fila")
-    pending = db.execute('''SELECT count(*) AS total FROM unnest(%s::integer[]) v(id)
-        CROSS JOIN unnest(%s::integer[]) r(codigo)
-        LEFT JOIN "Precos" p ON p."VeiculoId"=v.id AND p."TabelaReferenciaCodigo"=r.codigo
-        WHERE p."Id" IS NULL OR (%s AND (p."Valor" IS NULL OR p."Valor"<=0))''',
-        ([v["id"] for v in selected], [r["codigo"] for r in refs], args.reconsultar_vazios)).fetchone()["total"]
+    snapshot = coverage(db, selected, refs, args)
+    args._coverage = snapshot
+    pending = snapshot["geral"]["pendentes"]
     table = Table(title="Plano de coleta local")
     table.add_column("Item"); table.add_column("Quantidade / período")
-    for name, value in [("Veículos", f"{len(selected):,}"), ("Referências", f"{len(refs)}: {refs[-1]['mes']} a {refs[0]['mes']}"),
-                        ("Combinações já consultadas", f"{len(selected) * len(refs) - pending:,}"), ("Combinações pendentes", f"{pending:,}"),
+    for name, value in [("Ordem", "Carros populares → demais carros → motos populares → demais motos" if args.ordem == "populares" else "Cadastro (ID local)"),
+                        ("Veículos", f"{len(selected):,}"), ("Referências", f"{len(refs)}: {refs[-1]['mes']} a {refs[0]['mes']}"),
+                        ("Total completo", f"{snapshot['geral']['total']:,} combinações"),
+                        ("Combinações já consultadas", f"{snapshot['geral']['resolvidos']:,}"), ("Combinações pendentes", f"{pending:,}"),
                         ("Tempo mínimo estimado", f"{duration(pending * args.intervalo)}; pausas e retentativas aumentam esse tempo")]:
         table.add_row(name, value)
     log.console.print(table)
+    if args.ordem == "populares":
+        log.event("PRIORIDADE", "Ordem lida da lista de marcas relevantes do site", fonte=args._priority_source)
+    groups = Table(title="Cobertura por etapa e marca (veículo × mês)")
+    for name in ("Etapa / marca", "Veículos", "Total", "Com preço", "Sem preço", "Pendentes"):
+        groups.add_column(name, justify="left" if name == "Etapa / marca" else "right")
+    def show(label, row):
+        groups.add_row(label, *(f"{row[k]:,}" for k in ("veiculos", "total", "com_preco", "sem_preco", "pendentes")))
+    show("TOTAL GERAL", snapshot["geral"])
+    for phase, label in PHASES.items():
+        if not snapshot["etapas"][phase]["total"]:
+            continue
+        show(label, snapshot["etapas"][phase])
+        seen = set()
+        for vehicle in selected:
+            key = (vehicle["tipo"], vehicle["marca"])
+            if vehicle["fase"] == phase and key not in seen:
+                seen.add(key)
+                kind = {1: "carros", 2: "motos", 3: "caminhões"}.get(vehicle["tipo"], str(vehicle["tipo"]))
+                show(f"  {vehicle['marca_nome']} ({kind})", snapshot["marcas"][key])
+    log.console.print(groups)
+    log_coverage(log, snapshot, "Plano inicial; totais incluem coletas anteriores")
     log.event("PLANO", f"{len(selected):,} veículos; {pending:,} combinações pendentes", pendentes=pending, meses=len(refs))
     return selected, refs, pending
+
+
+class CollectionProgress:
+    def __init__(self, db, args, log, selected, refs):
+        self.db, self.args, self.log, self.selected, self.refs = db, args, log, selected, refs
+        self.snapshot = args._coverage
+        self.tasks = {}
+        for scope, title in (("geral", "Resolvidos no banco"), ("prioritarias", "Prioritárias"), ("restante", "Restante")):
+            row = self.snapshot[scope]
+            if row["total"]:
+                self.tasks[scope] = log.progress.add_task(title, total=row["total"], completed=row["resolvidos"])
+        self.current_brand = None
+        self.brand_task = None
+        self.phase = None
+        self.last_refresh = time.monotonic()
+
+    def start(self, vehicle):
+        phase = vehicle["fase"]
+        if phase != self.phase:
+            if self.phase is not None:
+                self.refresh()
+                remaining = self.snapshot["etapas"][self.phase]["pendentes"]
+                self.log.event("FASE", f"Passagem da etapa {self.phase} encerrada; {remaining:,} combinações ainda pendentes na fonte", fase=self.phase, pendentes=remaining)
+            self.phase = phase
+            self.log.event("FASE", f"Iniciando {PHASES[phase]}; todo o catálogo continua no plano", fase=phase)
+        key = (vehicle["tipo"], vehicle["marca"])
+        if key != self.current_brand:
+            if self.brand_task is not None:
+                self.log.progress.remove_task(self.brand_task)
+            self.current_brand = key
+            row = self.snapshot["marcas"][key]
+            self.brand_task = self.log.progress.add_task(f"Marca: {row['nome']}", total=row["total"], completed=row["resolvidos"])
+            self.log.event("MARCA", f"{vehicle['marca_nome']} · etapa {phase} · {row['pendentes']:,} pendentes / {row['total']:,} combinações", tipo=vehicle["tipo"], marca=vehicle["marca"], slug=vehicle["marca_slug"], fase=phase, **{k: row[k] for k in METRICS})
+
+    def success(self, vehicle):
+        group = "prioritarias" if vehicle["prioritaria"] else "restante"
+        for row in (self.snapshot["geral"], self.snapshot[group], self.snapshot["etapas"][vehicle["fase"]], self.snapshot["marcas"][(vehicle["tipo"], vehicle["marca"])]):
+            row["resolvidos"] += 1
+            row["pendentes"] -= 1
+        self.update()
+
+    def update(self):
+        for scope, task in self.tasks.items():
+            self.log.progress.update(task, completed=self.snapshot[scope]["resolvidos"])
+        if self.brand_task is not None:
+            self.log.progress.update(self.brand_task, completed=self.snapshot["marcas"][self.current_brand]["resolvidos"])
+
+    def refresh(self):
+        self.snapshot = coverage(self.db, self.selected, self.refs, self.args)
+        self.last_refresh = time.monotonic()
+        self.update()
+        log_coverage(self.log, self.snapshot)
 
 
 class Sync:
@@ -313,8 +506,9 @@ class Sync:
         client.set_missing_host_key_policy(paramiko.RejectPolicy())
         common = dict(hostname=cfg["host"], port=cfg.get("port", 22), username=cfg.get("user", "root"),
                       timeout=15, auth_timeout=20, banner_timeout=20)
-        if cfg.get("key_file"):
-            common["key_filename"] = str(Path(cfg["key_file"]).expanduser())
+        key_file = cfg.get("key_file") or os.environ.get("FIPE_VPS_SSH_KEY")
+        if key_file:
+            common["key_filename"] = str(Path(key_file).expanduser())
         self.password = self.password or os.environ.get(cfg.get("password_env", "FIPE_VPS_SSH_PASSWORD"))
         try:
             client.connect(**common, password=self.password)
@@ -420,20 +614,21 @@ def collector_lock(db):
 
 def collect(db, args, log, sync=None):
     api = Fipe(args, log)
+    progress = None
     try:
         if not args.sem_atualizar_referencias:
             refresh_references(db, api, args.meses)
         selected, refs, pending = plan(db, args, log)
-        task = log.progress.add_task("Coleta: veículo / mês", total=pending)
+        progress = CollectionProgress(db, args, log, selected, refs)
         last_sync, errors = time.monotonic(), 0
         for index, vehicle in enumerate(selected, 1):
             known = known_prices(db, vehicle["id"])
             outstanding = [r for r in refs if missing(known, r["codigo"], args.reconsultar_vazios)]
             if not outstanding:
                 continue
-            log.event("VEICULO", f"[{index:,}/{len(selected):,}] ID local {vehicle['id']} · {vehicle['nome']} · {len(outstanding)} meses pendentes", veiculo=vehicle["id"])
+            progress.start(vehicle)
+            log.event("VEICULO", f"[{index:,}/{len(selected):,}] ID local {vehicle['id']} · {vehicle['nome']} · {len(outstanding)} meses pendentes", veiculo=vehicle["id"], fase=vehicle["fase"], marca=vehicle["marca"], marca_slug=vehicle["marca_slug"])
             for reference in outstanding:
-                log.progress.update(task, description=f"ID {vehicle['id']} · {reference['mes']}")
                 log.event("CONSULTA", f"{vehicle['nome']} · {reference['mes']} · referência {reference['codigo']}", veiculo=vehicle["id"], referencia=reference["codigo"])
                 started = time.monotonic()
                 try:
@@ -441,6 +636,7 @@ def collect(db, args, log, sync=None):
                     written = save_quote(db, vehicle, reference, value, code)
                     log.counts["salvos local"] += int(written)
                     log.counts["preservados local"] += int(not written)
+                    progress.success(vehicle)
                     errors = 0
                     log.event("SALVO", f"{vehicle['nome']} · {reference['mes']} · {money(value)} · {'gravado localmente' if written else 'preço existente preservado'} · {time.monotonic() - started:.1f}s", veiculo=vehicle["id"], referencia=reference["codigo"], valor=str(value))
                 except (Blocked, RequestLimit):
@@ -451,13 +647,16 @@ def collect(db, args, log, sync=None):
                     log.event("PENDENTE", str(exc), veiculo=vehicle["id"], referencia=reference["codigo"])
                     if errors >= 10:
                         raise Blocked("Dez combinações seguidas falharam; interrompido para não insistir em uma fonte indisponível") from None
-                log.progress.advance(task)
+                log.counts["combinações tentadas"] += 1
                 if sync and time.monotonic() - last_sync >= args.sincronizar_cada:
                     safe_sync(sync, db, args, log)
                     last_sync = time.monotonic()
-        log.progress.update(task, description="Coleta finalizada (confira pendências)")
+                if time.monotonic() - progress.last_refresh >= 60:
+                    progress.refresh()
     finally:
         api.session.close()
+        if progress is not None:
+            progress.refresh()
 
 
 def safe_sync(sync, db, args, log):
@@ -487,6 +686,8 @@ def arguments(argv=None):
     p.add_argument("--veiculo", type=int, action="append", help="ID local; pode repetir")
     p.add_argument("--tipo", type=int, choices=[0, 1, 2, 3], default=0, help="0=todos, 1=carros, 2=motos, 3=caminhões")
     p.add_argument("--limite-veiculos", type=int)
+    p.add_argument("--ordem", choices=["populares", "cadastro"], default="populares", help="carros antes de motos; populares primeiro dentro de cada tipo. cadastro restaura a ordem por ID")
+    p.add_argument("--marcas-prioritarias", type=Path, help="JSON opcional com arrays Carros/Motos de slugs; substitui a lista do site")
     p.add_argument("--max-consultas", type=int, default=0, help="limite real de chamadas HTTP (0=sem limite), incluindo referências/retentativas")
     p.add_argument("--intervalo", type=float, default=1.8, help="intervalo mínimo entre requisições, em segundos")
     p.add_argument("--tentativas", type=int, default=4)

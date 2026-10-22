@@ -68,4 +68,73 @@ public class VariacaoCalculatorTests
         Assert.Equal(150m, r.ValorAtual);
         Assert.Equal(50m, r.VariacaoPeriodoPct);
     }
+
+    [Fact]
+    public void MediaMensal_UsaTaxaCompostaEDiferencaMediaEmReais()
+    {
+        var r = VariacaoCalculator.Calcular([P(2025, 1, 100_000m), P(2025, 2, 90_000m), P(2025, 3, 81_000m)])!;
+        Assert.Equal(-10m, Math.Round(r.VariacaoMediaMensalPct!.Value, 8));
+        Assert.Equal(-9_500m, r.VariacaoMediaMensalValor);
+        Assert.Equal(-19_000m, r.VariacaoPeriodoValor);
+        Assert.Equal(new DateOnly(2025, 1, 1), r.InicioPeriodo);
+        Assert.Equal(new DateOnly(2025, 3, 1), r.FimPeriodo);
+        Assert.Equal(2, r.MesesPeriodo);
+        Assert.Equal(3, r.QuantidadeCotacoes);
+    }
+
+    [Fact]
+    public void MediaMensal_ComLacunas_UsaMesesDecorridosEntreAnos()
+    {
+        var r = VariacaoCalculator.Calcular([P(2025, 1, 121_000m), P(2024, 11, 100_000m), P(2024, 12, null)])!;
+        Assert.Equal(10m, Math.Round(r.VariacaoMediaMensalPct!.Value, 8));
+        Assert.Equal(10_500m, r.VariacaoMediaMensalValor);
+        Assert.Equal(2, r.MesesPeriodo);
+        Assert.Equal(2, r.QuantidadeCotacoes);
+    }
+
+    [Fact]
+    public void Variacao12m_SemMesExato_NaoSubstituiPorCotacaoMaisAntiga()
+    {
+        var r = VariacaoCalculator.Calcular([P(2024, 1, 100m), P(2024, 2, null), P(2025, 2, 80m)])!;
+        Assert.Null(r.Variacao12mPct);
+        Assert.Null(r.Variacao12mValor);
+    }
+
+    [Fact]
+    public void Variacao12m_IncluiDiferencaEmReais()
+    {
+        var r = VariacaoCalculator.Calcular([P(2024, 2, 100_000m), P(2025, 2, 90_000m)])!;
+        Assert.Equal(-10m, r.Variacao12mPct);
+        Assert.Equal(-10_000m, r.Variacao12mValor);
+    }
+
+    [Fact]
+    public void UmaCotacao_NaoInventaMediaOuVariacaoAcumulada()
+    {
+        var r = VariacaoCalculator.Calcular([P(2025, 1, 100m)])!;
+        Assert.Equal(100m, r.ValorAtual);
+        Assert.Null(r.VariacaoMediaMensalPct);
+        Assert.Null(r.VariacaoMediaMensalValor);
+        Assert.Null(r.VariacaoPeriodoPct);
+        Assert.Null(r.VariacaoPeriodoValor);
+        Assert.Equal(0, r.MesesPeriodo);
+    }
+
+    [Fact]
+    public void PrecosInvalidos_NaoEntramNosIndicadores()
+    {
+        Assert.Null(VariacaoCalculator.Calcular([P(2025, 1, 0m), P(2025, 2, -100m)]));
+        var r = VariacaoCalculator.Calcular([P(2024, 12, -1m), P(2025, 1, 100m), P(2025, 2, 0m), P(2025, 3, 81m)])!;
+        Assert.Equal(2, r.QuantidadeCotacoes);
+        Assert.Equal(81m, r.Minimo);
+        Assert.Equal(-10m, Math.Round(r.VariacaoMediaMensalPct!.Value, 8));
+    }
+
+    [Fact]
+    public void PrecoEstavel_MediaMensalZero()
+    {
+        var r = VariacaoCalculator.Calcular([P(2025, 1, 100m), P(2025, 3, 100m)])!;
+        Assert.Equal(0m, r.VariacaoMediaMensalPct);
+        Assert.Equal(0m, r.VariacaoMediaMensalValor);
+    }
 }

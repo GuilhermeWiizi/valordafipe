@@ -38,26 +38,7 @@ else
 
     @if (detalhe.Resumo is { } r)
     {
-        <div class="cards-resumo">
-            <div class="card-resumo destaque">
-                <span class="rotulo">Último preço disponível</span>
-                <span class="valor">@Moeda(r.ValorAtual)</span>
-                <span class="sub">@r.MesReferencia</span>
-            </div>
-            <div class="card-resumo">
-                <span class="rotulo">Entre as últimas cotações</span>
-                <span class="valor @Cor(r.VariacaoMesPct)">@Pct(r.VariacaoMesPct)</span>
-                <span class="sub">@(r.VariacaoMesValor is { } mv ? Moeda(mv, sinal: true) : "—")</span>
-            </div>
-            <div class="card-resumo">
-                <span class="rotulo">Aproximadamente 12 meses</span>
-                <span class="valor @Cor(r.Variacao12mPct)">@Pct(r.Variacao12mPct)</span>
-            </div>
-            <div class="card-resumo">
-                <span class="rotulo">No período</span>
-                <span class="valor @Cor(r.VariacaoPeriodoPct)">@Pct(r.VariacaoPeriodoPct)</span>
-            </div>
-        </div>
+        <VehicleSummary Resumo="r" />
 
         <VehicleHistory Detail="detalhe" />
 
@@ -139,15 +120,5 @@ else
             new(Ano, CatalogPaths.Vehicle(detalhe))];
     }
 
-    private static string Moeda(decimal v, bool sinal = false)
-    {
-        var s = v.ToString("C2", Pt);
-        return sinal && v > 0 ? "+" + s : s;
-    }
-
-    private static string Pct(decimal? p)
-        => p is null ? "—" : $"{(p.Value >= 0 ? "+" : "")}{p.Value.ToString("0.0", Pt)}%";
-
-    private static string Cor(decimal? p)
-        => p is null ? "" : p.Value >= 0 ? "alta" : "baixa";
+    private static string Moeda(decimal v) => v.ToString("C2", Pt);
 }

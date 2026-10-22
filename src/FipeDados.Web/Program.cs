@@ -2,6 +2,7 @@ using System.Net;
 using ApexCharts;
 using FipeDados.Infrastructure;
 using FipeDados.Infrastructure.Data;
+using FipeDados.Infrastructure.Services;
 using FipeDados.Web.Components;
 using FipeDados.Web.Contas;
 using FipeDados.Web.Pagamentos;
@@ -37,6 +38,7 @@ builder.Services.AddOutputCache(options =>
     options.AddPolicy("SeoDiscovery", policy => policy.Expire(TimeSpan.FromMinutes(15)));
     PaginaCache.Configurar(options);
 });
+builder.Services.AddScoped<IRankingPublicacaoObserver, RankingCacheInvalidator>();
 builder.Services.AddMetricasCarga();
 builder.Services.AddLimiteAcesso();
 builder.Services.AddResponseCompression(options =>
@@ -73,6 +75,17 @@ catch (Exception ex)
 {
     app.Logger.LogError(ex, "Falha ao aplicar migrations. O PostgreSQL está em execução? (docker compose up -d)");
     throw;
+}
+
+// Prepara a primeira publicação antes de receber visitas. Publicações recentes são reutilizadas.
+try
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    await scope.ServiceProvider.GetRequiredService<RankingAtualizador>().AtualizarAsync(ct: app.Lifetime.ApplicationStopping);
+}
+catch (Exception ex)
+{
+    app.Logger.LogError(ex, "Falha na preparação dos rankings. O último resultado salvo será usado e o job periódico tentará novamente.");
 }
 
 await app.InicializarColetaMensalAsync();

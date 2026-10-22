@@ -111,6 +111,9 @@ public class ColetaMensalTests
         Assert.DoesNotContain(f.Api.Queries, q => q.Tipo == TipoVeiculo.Carro && q.CodigoModelo == 1 && q.Ano == "2025-1");
         Assert.All(f.Api.Queries, q => Assert.Equal(11, q.CodigoTabela));
         var consultas = f.Api.Queries.Count;
+        Assert.Equal(3, await f.Read(db => db.RankingsMensais.CountAsync()));
+        Assert.Equal(await f.Read(db => db.TabelasReferencia.MaxAsync(t => t.Data)),
+            (await new RankingService(f).ObterMensalAsync()).Referencia);
         await f.Service().ExecutarAsync(Novembro, default);
         Assert.Equal(consultas, f.Api.Queries.Count);
     }
@@ -271,7 +274,8 @@ public class ColetaMensalTests
             var scraperOptions = Options.Create(new ScraperOptions { TentativasPorItem = 1, MaxFalhasConsecutivas = 100,
                 PausaAposFalhaSegundos = 0, PausaLimiteSegundos = 0, MaxLimitesSeguidos = 1 });
             var coletor = new ColetorFipe(this, Api, catalogo, precos, scraperOptions, fipeOptions, NullLogger<ColetorFipe>.Instance);
-            return new(this, Api, coletor, Clock, fipeOptions, NullLogger<ColetaMensalService>.Instance);
+            return new(this, Api, coletor, Clock, fipeOptions, NullLogger<ColetaMensalService>.Instance,
+                new RankingAtualizador(this, Clock, [], NullLogger<RankingAtualizador>.Instance));
         }
         public Task Verificar() => Service().VerificarAsync(mes =>
         {

@@ -1,3 +1,4 @@
+using FipeDados.Core.Enums;
 using FipeDados.Core.Models;
 using FipeDados.Core.Services;
 using FipeDados.Infrastructure.Data;
@@ -35,8 +36,14 @@ public class VeiculosRelacionadosService(IDbContextFactory<FipeDbContext> factor
         {
             var minimo = basePositiva * .9m;
             var maximo = basePositiva * 1.1m;
-            semelhantes = await precosDoMes.Where(p => p.Veiculo.ModeloId != veiculo.ModeloId
-                    && p.Veiculo.Modelo.Marca.Tipo == veiculo.Modelo.Marca.Tipo && p.Valor >= minimo && p.Valor <= maximo)
+            var candidatos = precosDoMes.Where(p => p.Veiculo.ModeloId != veiculo.ModeloId
+                && p.Veiculo.Modelo.Marca.Tipo == veiculo.Modelo.Marca.Tipo && p.Valor >= minimo && p.Valor <= maximo);
+            if (veiculo.Modelo.Marca.Tipo == TipoVeiculo.Carro)
+            {
+                var marcas = MarcasRelevantes.CarrosPopulares;
+                candidatos = candidatos.Where(p => marcas.Contains(p.Veiculo.Modelo.Marca.Slug));
+            }
+            semelhantes = await candidatos
                 .OrderBy(p => Math.Abs(p.Valor!.Value - basePositiva)).ThenBy(p => p.VeiculoId).Take(6)
                 .Select(p => new VeiculoRelacionado(p.VeiculoId, p.Veiculo.Modelo.Marca.Nome, p.Veiculo.Modelo.Nome,
                     p.Veiculo.AnoLabel, p.Valor, p.Valor - basePositiva, p.Veiculo.Modelo.Marca.Tipo,

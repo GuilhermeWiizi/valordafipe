@@ -549,6 +549,37 @@ namespace FipeDados.Infrastructure.Data.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("FipeDados.Infrastructure.Services.RankingPublicado", b =>
+                {
+                    b.Property<int>("TabelaReferenciaCodigo")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Conteudo")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("FonteHash")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateOnly>("Referencia")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("Versao")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("TabelaReferenciaCodigo", "Tipo");
+
+                    b.ToTable("RankingsMensais", (string)null);
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.DataProtection.EntityFrameworkCore.DataProtectionKey", b =>
                 {
                     b.Property<int>("Id")
@@ -757,6 +788,15 @@ namespace FipeDados.Infrastructure.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Usuario");
+                });
+
+            modelBuilder.Entity("FipeDados.Infrastructure.Services.RankingPublicado", b =>
+                {
+                    b.HasOne("FipeDados.Core.Entities.TabelaReferencia", null)
+                        .WithMany()
+                        .HasForeignKey("TabelaReferenciaCodigo")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

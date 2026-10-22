@@ -20,7 +20,18 @@ public record ResumoVariacao(
     DateOnly DataMinimo,
     decimal Maximo,
     DateOnly DataMaximo,
-    decimal Media);
+    decimal Media)
+{
+    public DateOnly InicioPeriodo { get; init; }
+    public DateOnly FimPeriodo { get; init; }
+    public int QuantidadeCotacoes { get; init; }
+    public int MesesPeriodo => (FimPeriodo.Year - InicioPeriodo.Year) * 12 + FimPeriodo.Month - InicioPeriodo.Month;
+    public decimal? VariacaoPeriodoValor { get; init; }
+    public decimal? Variacao12mValor { get; init; }
+    public decimal? VariacaoMediaMensalValor { get; init; }
+    /// <summary>Taxa mensal composta equivalente entre o primeiro e o último preço, considerando os meses decorridos.</summary>
+    public decimal? VariacaoMediaMensalPct { get; init; }
+}
 
 /// <summary>
 /// Resultado da coleta de preços de um veículo: quantos meses foram consultados na Fipe

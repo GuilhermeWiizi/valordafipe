@@ -5,34 +5,43 @@ using FipeDados.Core.Services;
 using FipeDados.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using System.Text.Json;
 
 namespace FipeDados.Infrastructure.Services;
 
 /// <summary>
-/// Consulta apenas preços persistidos; abrir o ranking não dispara coleta. Com cache, as
-/// agregações sobre Precos rodam no máximo uma vez por <see cref="Validade"/> e referência.
+/// Lê apenas o resultado publicado pelo job. Uma visita nunca agrega a tabela de preços.
 /// </summary>
 public class RankingService(IDbContextFactory<FipeDbContext> dbFactory, IMemoryCache? cache = null) : IRankingService
 {
-    // Cobre a coleta do mês em andamento, que acrescenta preços aos poucos.
     public static readonly TimeSpan Validade = TimeSpan.FromMinutes(10);
 
     public async Task<RankingMensal> ObterMensalAsync(TipoVeiculo? tipo = null, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var atual = await db.TabelasReferencia.AsNoTracking().OrderByDescending(t => t.Data).FirstOrDefaultAsync(ct);
-        if (atual is null) return new(null, 0, 0, [], []);
-        if (cache is null) return await CalcularAsync(db, atual, tipo, ct);
+        var filtro = tipo is { } t ? (int)t : 0;
+        var publicado = await db.RankingsMensais.AsNoTracking().Where(r => r.Tipo == filtro)
+            .OrderByDescending(r => r.Referencia).FirstOrDefaultAsync(ct);
+        if (publicado is null) return new(null, 0, 0, [], []);
+        if (cache is null) return Ler(publicado);
 
-        // A referência faz parte da chave: tabela nova publicada invalida o ranking na hora.
-        return (await cache.GetOrCreateAsync(("ranking-mensal", atual.Codigo, tipo), entrada =>
+        // A versão vem do banco: outros processos também deixam de usar a entrada antiga.
+        return (await cache.GetOrCreateAsync(("ranking-publicado", filtro, publicado.Versao), entrada =>
         {
             entrada.AbsoluteExpirationRelativeToNow = Validade;
-            return CalcularAsync(db, atual, tipo, ct);
+            return Task.FromResult(Ler(publicado));
         }))!;
     }
 
-    private static async Task<RankingMensal> CalcularAsync(FipeDbContext db, TabelaReferencia atual, TipoVeiculo? tipo, CancellationToken ct)
+    private static RankingMensal Ler(RankingPublicado publicado)
+        => JsonSerializer.Deserialize<RankingMensal>(publicado.Conteudo)
+            ?? throw new InvalidOperationException("Ranking publicado sem conteúdo.");
+}
+
+/// <summary>Consulta de agregação usada exclusivamente na atualização em segundo plano.</summary>
+public static class RankingCalculator
+{
+    public static async Task<RankingMensal> CalcularAsync(FipeDbContext db, TabelaReferencia atual, TipoVeiculo? tipo, CancellationToken ct)
     {
         var dataAnterior = atual.Data.AddMonths(-1);
         var anteriores = db.Precos.AsNoTracking().Where(p => p.TabelaReferencia.Data == dataAnterior && p.Valor > 0);
@@ -59,11 +68,21 @@ public class RankingService(IDbContextFactory<FipeDbContext> dbFactory, IMemoryC
                           };
 
         var total = await comparaveis.CountAsync(ct);
-        var altas = await comparaveis.Where(p => p.Percentual > 0)
+        // Cada descrição ocupa uma posição, representada pelo ano/combustível com maior variação.
+        // Agrupa antes do TOP 5 para que anos repetidos não escondam outros modelos.
+        var idsAltas = comparaveis.Where(p => p.Percentual > 0)
+            .GroupBy(p => new { p.Tipo, p.Marca, p.Modelo })
+            .Select(g => g.OrderByDescending(p => p.Percentual).ThenBy(p => p.VeiculoId)
+                .Select(p => p.VeiculoId).First());
+        var altas = await comparaveis.Where(p => idsAltas.Contains(p.VeiculoId))
             .OrderByDescending(p => p.Percentual).ThenBy(p => p.VeiculoId).Take(5)
             .Select(p => new ItemRanking(p.VeiculoId, p.Marca, p.Modelo, p.AnoLabel, p.Atual, p.Anterior,
                 p.Tipo, p.MarcaSlug, p.ModeloSlug, p.AnoModeloCodigo)).ToListAsync(ct);
-        var baixas = await comparaveis.Where(p => p.Percentual < 0)
+        var idsBaixas = comparaveis.Where(p => p.Percentual < 0)
+            .GroupBy(p => new { p.Tipo, p.Marca, p.Modelo })
+            .Select(g => g.OrderBy(p => p.Percentual).ThenBy(p => p.VeiculoId)
+                .Select(p => p.VeiculoId).First());
+        var baixas = await comparaveis.Where(p => idsBaixas.Contains(p.VeiculoId))
             .OrderBy(p => p.Percentual).ThenBy(p => p.VeiculoId).Take(5)
             .Select(p => new ItemRanking(p.VeiculoId, p.Marca, p.Modelo, p.AnoLabel, p.Atual, p.Anterior,
                 p.Tipo, p.MarcaSlug, p.ModeloSlug, p.AnoModeloCodigo)).ToListAsync(ct);

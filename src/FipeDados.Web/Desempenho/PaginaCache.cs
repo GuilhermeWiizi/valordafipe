@@ -11,6 +11,8 @@ namespace FipeDados.Web.Desempenho;
 public static class PaginaCache
 {
     public const string Politica = "Pagina";
+    public const string Ranking = "Ranking";
+    public const string RankingTag = "ranking-mensal";
     public static readonly TimeSpan Duracao = TimeSpan.FromMinutes(10);
     private const string Recusada = "PaginaCache:Recusada";
     private const string Publica = "PaginaCache:Publica";
@@ -19,7 +21,10 @@ public static class PaginaCache
 
     public static void Configurar(OutputCacheOptions options)
         // Só as chaves que mudam o conteúdo: query aleatória não cria entradas novas.
-        => options.AddPolicy(Politica, policy => policy.Expire(Duracao).SetVaryByQuery("tipo", "pagina").AddPolicy<PaginaPublica>());
+    {
+        options.AddPolicy(Politica, policy => policy.Expire(Duracao).SetVaryByQuery("tipo", "pagina").AddPolicy<PaginaPublica>());
+        options.AddPolicy(Ranking, policy => policy.Expire(Duracao).SetVaryByQuery("tipo").Tag(RankingTag).AddPolicy<PaginaPublica>());
+    }
 
     /// <summary>
     /// Impede que esta resposta vá para o cache: histórico ainda em coleta (a próxima visita

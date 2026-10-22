@@ -9,7 +9,8 @@ using Microsoft.Extensions.Options;
 namespace FipeDados.Infrastructure.Coleta;
 
 public sealed class ColetaMensalService(IDbContextFactory<FipeDbContext> factory, IFipeApiClient fipe,
-    ColetorFipe coletor, TimeProvider relogio, IOptions<FipeApiOptions> options, ILogger<ColetaMensalService> logger)
+    ColetorFipe coletor, TimeProvider relogio, IOptions<FipeApiOptions> options, ILogger<ColetaMensalService> logger,
+    RankingAtualizador ranking)
 {
     public async Task InicializarAsync(CancellationToken ct)
     {
@@ -140,5 +141,11 @@ public sealed class ColetaMensalService(IDbContextFactory<FipeDbContext> factory
             }
         }
         finally { await ColetaMensalLock.LiberarAsync(db); }
+
+        // Falha na publicação não transforma uma coleta já concluída em incompleta.
+        // A tarefa periódica retenta a partir dos preços que já foram persistidos.
+        try { await ranking.AtualizarAsync(forcar: true, ct); }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex) { logger.LogError(ex, "Coleta concluída, mas a atualização do ranking falhou. Será tentada novamente em segundo plano."); }
     }
 }

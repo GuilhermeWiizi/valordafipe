@@ -2,6 +2,7 @@ using FipeDados.Core.Entities;
 using FipeDados.Core.Services;
 using FipeDados.Infrastructure.Contas;
 using FipeDados.Infrastructure.Coleta;
+using FipeDados.Infrastructure.Services;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -26,10 +27,20 @@ public class FipeDbContext : IdentityDbContext<Usuario>, IDataProtectionKeyConte
     public DbSet<NotificacaoMercadoPago> NotificacoesMercadoPago => Set<NotificacaoMercadoPago>();
     public DbSet<ColetaMensalConfiguracao> ColetaMensalConfiguracoes => Set<ColetaMensalConfiguracao>();
     public DbSet<ColetaMensalExecucao> ColetasMensais => Set<ColetaMensalExecucao>();
+    public DbSet<RankingPublicado> RankingsMensais => Set<RankingPublicado>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
         base.OnModelCreating(b);
+
+        b.Entity<RankingPublicado>(e =>
+        {
+            e.ToTable("RankingsMensais");
+            e.HasKey(x => new { x.TabelaReferenciaCodigo, x.Tipo });
+            e.Property(x => x.Conteudo).HasColumnType("jsonb");
+            e.Property(x => x.FonteHash).HasMaxLength(32);
+            e.HasOne<TabelaReferencia>().WithMany().HasForeignKey(x => x.TabelaReferenciaCodigo);
+        });
 
         b.Entity<ColetaMensalConfiguracao>(e =>
         {

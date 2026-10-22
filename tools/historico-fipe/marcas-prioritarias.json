@@ -1,0 +1,11 @@
+{
+  "origem": "src/FipeDados.Core/Models/MarcasRelevantes.cs: CarrosPopulares e Motos",
+  "Carros": [
+    "fiat", "vw-volkswagen", "gm-chevrolet", "toyota", "hyundai", "jeep", "renault", "honda", "nissan",
+    "ford", "peugeot", "citroen", "mitsubishi", "kia-motors", "ram", "suzuki", "subaru", "chrysler", "dodge"
+  ],
+  "Motos": [
+    "honda", "yamaha", "suzuki", "bmw", "kawasaki", "harley-davidson", "triumph", "ktm", "ducati",
+    "royal-enfield", "shineray", "haojue"
+  ]
+}

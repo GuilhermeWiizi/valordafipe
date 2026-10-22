@@ -2,7 +2,7 @@
 
 Executa na máquina com acesso à FIPE direta, grava cada cotação no PostgreSQL local
 e envia os preços à VPS por SSH. A pasta é independente do .NET e pode ser copiada
-para outro local: mantenha `historico.py`, `merge_precos.sql`, configuração e dependências juntos.
+para outro local: mantenha `historico.py`, `merge_precos.sql`, `marcas-prioritarias.json`, configuração e dependências juntos.
 Requer Python 3.11+ e o banco local já populado com o catálogo do site.
 
 ## Começar no Windows
@@ -46,7 +46,7 @@ Linux/macOS usam `.venv/bin/python` em lugar de `.venv\Scripts\python.exe`.
 # Só envia os preços locais ainda não confirmados na VPS.
 .\executar.bat sync
 
-# Coleta e envio periódico, para todos os veículos e os últimos 24 meses.
+# Coleta e envio periódico: carros primeiro, marcas populares primeiro; motos depois.
 .\executar.bat run
 
 # Primeiro teste pequeno, no Fiesta da base local atual.
@@ -55,8 +55,11 @@ Linux/macOS usam `.venv/bin/python` em lugar de `.venv\Scripts\python.exe`.
 # Pode repetir --veiculo. Os IDs aqui são exclusivamente os do banco local.
 .\executar.bat collect --veiculo 8323 --veiculo 5087 --meses 24
 
-# Só carros; limitar a seleção aos primeiros 100 veículos.
+# Só carros; limitar aos primeiros 100 veículos da ordem de prioridade.
 .\executar.bat run --tipo 1 --limite-veiculos 100
+
+# Opcional: restaurar a ordem antiga por ID, sem prioridade de marcas/tipos.
+.\executar.bat run --ordem cadastro
 
 # Completar também linhas antigas que foram gravadas com preço nulo/zero.
 .\executar.bat run --reconsultar-vazios
@@ -76,14 +79,47 @@ eventual consulta alternativa por marca/modelo. O limite não restringe quantos
 preços já existentes podem ser enviados à VPS. Os filtros de veículos e meses valem
 tanto para a coleta quanto para o envio.
 
+## Ordem de prioridade e controle do total
+
+`run` e `collect` usam por padrão esta sequência, sem excluir veículos:
+
+1. Carros das marcas populares, na ordem do array do site (Fiat, Volkswagen,
+   Chevrolet, Toyota, Hyundai e demais marcas do grupo).
+2. Todos os demais carros.
+3. Motos das marcas prioritárias, começando por Honda e Yamaha.
+4. Todas as demais motos; outros tipos ficam ao final, se existirem na base.
+
+No repositório, a lista vem de `src/FipeDados.Core/Models/MarcasRelevantes.cs`:
+usa `CarrosPopulares`, quando disponível, ou `Carros`, e o array `Motos`.
+Ao copiar a pasta para fora do repositório, usa a cópia em `marcas-prioritarias.json`.
+`--marcas-prioritarias outro.json` permite indicar outra lista de slugs com os
+arrays `Carros` e `Motos`. O limite de veículos é aplicado **depois** da ordenação.
+
+A janela completa continua sendo veículos selecionados × meses de referência.
+A prévia mostra totais por etapa e por marca, separados em com preço, sem preço
+(linhas nulas/zero já existentes) e pendentes. Na retomada, os números são recalculados
+pelo banco: mudar a ordem não zera o avanço nem reconsulta preços positivos.
+
+As barras mostram combinações resolvidas no banco sobre o total, incluindo o que
+já estava gravado antes desta execução. Uma tentativa recusada **não avança** essa
+cobertura. O contador de combinações tentadas aparece separadamente no resumo.
+O script segue para a etapa seguinte mesmo se algumas combinações da anterior
+forem recusadas pela fonte; essas pendências continuam contabilizadas.
+
+Os eventos `FASE`, `MARCA` e `PROGRESSO` identificam etapa, marca e cobertura global.
+A cada minuto, nas mudanças de etapa e no encerramento da coleta, os totais são
+recalculados no banco e registrados no log. Ao lado do JSONL, o arquivo
+`historico-*.progresso.json` guarda a última fotografia completa, com os totais por
+marca e etapa e a janela de referências. As atualizações usam substituição atômica.
+
 ## O que aparece durante a execução
 
 - Prévia: veículos, janela de referências, combinações pendentes e tempo mínimo estimado.
 - Cada veículo: posição na seleção, ID local, nome/ano/combustível e meses pendentes.
 - Cada mês: referência, chamada HTTP, número da tentativa, status e duração.
 - Cada gravação: preço em reais e confirmação de que foi salvo localmente.
-- Barra: combinações processadas, tempo decorrido e estimativa restante; falhas também
-  avançam a barra, mas continuam pendentes e são contadas separadamente no resumo.
+- Barras: cobertura geral, marcas prioritárias, restante e marca atual, incluindo
+  dados anteriores à execução; falhas permanecem pendentes sem avançar a cobertura.
 - Pausas: motivo, espera, contagem regressiva e evento a cada 30 segundos.
 - Cada lote: enviados, gravados/preenchidos, preservados, veículos ausentes e conflitos.
 - Resumo final e caminho do log completo em `logs/historico-*.jsonl`.
@@ -129,6 +165,8 @@ Códigos de saída: `0` concluído/limite voluntário atingido, `2` falha ou pen
 O banco permanece na rede interna do Docker; não abre a porta PostgreSQL da VPS.
 A conexão usa SSH e `docker exec ... psql`, com a senha digitada de forma oculta.
 Pode usar chave SSH ou a variável `FIPE_VPS_SSH_PASSWORD` para uma execução sem interação.
+`FIPE_VPS_SSH_KEY` permite indicar uma chave privada sem alterar o arquivo de configuração
+nem invalidar o histórico de confirmações da sincronização.
 A conexão local pode vir de `FIPE_LOCAL_DSN` em vez do TOML.
 
 O host precisa constar em `~/.ssh/known_hosts`. Se for outro computador, conecte uma

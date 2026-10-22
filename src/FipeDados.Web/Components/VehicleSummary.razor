@@ -1,0 +1,59 @@
+@using System.Globalization
+
+<section class="vehicle-summary" aria-label="Resumo do preço e da desvalorização">
+    <div class="cards-resumo">
+        <div class="card-resumo destaque">
+            <span class="rotulo">Último preço disponível</span>
+            <span class="valor">@Moeda(Resumo.ValorAtual)</span>
+            <span class="sub">@Resumo.MesReferencia</span>
+            <span class="periodo">Referência da Tabela Fipe</span>
+        </div>
+        <div class="card-resumo">
+            <span class="rotulo">@Rotulo(Resumo.VariacaoMediaMensalPct, "média mensal")</span>
+            <span class="valor @Cor(Resumo.VariacaoMediaMensalPct)">
+                @Pct(Resumo.VariacaoMediaMensalPct)
+                @if (Resumo.VariacaoMediaMensalPct is not null)
+                {
+                    <small>/mês</small>
+                }
+            </span>
+            <span class="sub">@(Resumo.VariacaoMediaMensalValor is { } media ? $"{Moeda(media, sinal: true)}/mês em média" : "Histórico insuficiente")</span>
+            <span class="periodo">@(Resumo.MesesPeriodo > 0 ? $"{Periodo} · {Duracao}" : "Aguardando outra referência mensal")</span>
+        </div>
+        <div class="card-resumo">
+            <span class="rotulo">Variação em 12 meses</span>
+            <span class="valor @Cor(Resumo.Variacao12mPct)">@Pct(Resumo.Variacao12mPct)</span>
+            <span class="sub">@(Resumo.Variacao12mValor is { } anual ? Moeda(anual, sinal: true) : "Sem cotação no mês de comparação")</span>
+            <span class="periodo">@Resumo.FimPeriodo.AddMonths(-12).ToString("MM/yyyy") → @Resumo.FimPeriodo.ToString("MM/yyyy")</span>
+        </div>
+        <div class="card-resumo">
+            <span class="rotulo">@Rotulo(Resumo.VariacaoPeriodoPct, "acumulada")</span>
+            <span class="valor @Cor(Resumo.VariacaoPeriodoPct)">@Pct(Resumo.VariacaoPeriodoPct)</span>
+            <span class="sub">@(Resumo.VariacaoPeriodoValor is { } total ? Moeda(total, sinal: true) : "Histórico insuficiente")</span>
+            <span class="periodo">@(Resumo.MesesPeriodo > 0 ? $"{Periodo} · {Duracao}" : "Aguardando outra referência mensal")</span>
+        </div>
+    </div>
+    <p class="summary-note">
+        @Resumo.QuantidadeCotacoes @(Resumo.QuantidadeCotacoes == 1 ? "cotação disponível" : "cotações disponíveis").
+        A média mensal resume a mudança entre o primeiro e o último preço do período; não é uma previsão.
+        <a href="/sobre">Entenda o cálculo</a>
+    </p>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public ResumoVariacao Resumo { get; set; } = default!;
+    private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-BR");
+    private string Periodo => $"{Resumo.InicioPeriodo:MM/yyyy} → {Resumo.FimPeriodo:MM/yyyy}";
+    private string Duracao => $"{Resumo.MesesPeriodo} {(Resumo.MesesPeriodo == 1 ? "mês" : "meses")}";
+
+    private static string Rotulo(decimal? variacao, string periodo)
+        => $"{(variacao < 0 ? "Desvalorização" : variacao > 0 ? "Valorização" : "Variação")} {periodo}";
+
+    private static string Moeda(decimal valor, bool sinal = false)
+        => (sinal && valor > 0 ? "+" : "") + valor.ToString("C2", Pt);
+
+    private static string Pct(decimal? valor)
+        => valor is { } v ? $"{(v > 0 ? "+" : "")}{v.ToString("0.0", Pt)}%" : "—";
+
+    private static string Cor(decimal? valor) => valor < 0 ? "baixa" : valor > 0 ? "alta" : "";
+}

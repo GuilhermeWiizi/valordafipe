@@ -20,10 +20,11 @@
             }
         </ol>
     }
-    <div class="ranking-card-footer"><Icon Name="info" Size="14" /> Comparação com o mês imediatamente anterior</div>
+    <div class="ranking-card-footer"><Icon Name="info" Size="14" /><span>@(Referencia is { } mes ? $"{mes.AddMonths(-1):MM/yyyy} → {mes:MM/yyyy}. " : "")Uma posição por modelo, com o ano de maior @(Alta ? "alta" : "queda").</span></div>
 </section>
 @code {
     [Parameter] public bool Alta { get; set; }
+    [Parameter] public DateOnly? Referencia { get; set; }
     [Parameter] public bool Carregando { get; set; }
     [Parameter] public bool SemComparacao { get; set; }
     [Parameter] public IReadOnlyList<ItemRanking> Itens { get; set; } = [];

@@ -1,0 +1,15 @@
+.vehicle-summary { margin: 28px 0; }
+.cards-resumo { margin: 0; }
+.card-resumo { min-width: 0; gap: 10px; }
+.card-resumo .rotulo { font-size: var(--fd-text-small); line-height: 1.6; letter-spacing: .65px; min-height: 3.2em; color: #64765e; }
+.card-resumo .valor { font-variant-numeric: tabular-nums; line-height: 1.3; }
+.card-resumo .valor small { font-size: var(--fd-text-small); font-weight: 500; letter-spacing: 0; color: #64765e; margin-left: 5px; }
+.card-resumo .sub { color: #64765e; line-height: 1.6; }
+.card-resumo.destaque .rotulo, .card-resumo.destaque .sub { color: #b2ccab; }
+.periodo { margin-top: auto; padding-top: 4px; color: #64765e; font-size: var(--fd-text-small); line-height: 1.6; }
+.destaque .periodo { color: #b2ccab; }
+.summary-note { margin: 12px 0 0; color: #64765e; font-size: var(--fd-text-small); line-height: 1.8; }
+.summary-note a { color: #396c48; text-underline-offset: 3px; }
+@media (max-width: 1200px) { .cards-resumo { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .card-resumo .rotulo { min-height: 4.8em; }.card-resumo .valor small { font-size: var(--fd-text-caption); }.periodo { font-size: var(--fd-text-caption); } }
+@media (max-width: 380px) { .cards-resumo { grid-template-columns: 1fr; }.card-resumo .rotulo { min-height: 0; } }

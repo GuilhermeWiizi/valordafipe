@@ -20,7 +20,7 @@
         {
             <div class="similar-grid">@foreach (var v in r.PrecosSemelhantes) { <article class="similar-card"><span class="similar-brand">@v.Marca</span><h3><a href="@CatalogPaths.Vehicle(v)">@v.Modelo</a></h3><span class="similar-year">@v.AnoExibicao</span><div class="similar-price"><strong>@Moeda(v.Preco)</strong><small>@Moeda(v.DiferencaValor, true) de diferença</small></div><a class="similar-compare" href="@($"/comparar?a={Detail.VeiculoId}&b={v.Id}")">Comparar com este <Icon Name="compare" Size="15" /></a></article> }</div>
         }
-        <p class="related-note"><Icon Name="info" Size="14" /> Alternativas do mesmo tipo de veículo, em @(r.Referencia?.ToString("MMMM/yyyy", Pt) ?? "referência indisponível"). Faixa de preço não implica equivalência de equipamentos ou estado de conservação. A cobertura da base pode ser parcial.</p>
+        <p class="related-note"><Icon Name="info" Size="14" /> @(Detail.Tipo == TipoVeiculo.Carro ? "Alternativas de marcas populares, do mesmo tipo de veículo" : "Alternativas do mesmo tipo de veículo"), em @(r.Referencia?.ToString("MMMM/yyyy", Pt) ?? "referência indisponível"). Faixa de preço não implica equivalência de equipamentos ou estado de conservação. A cobertura da base pode ser parcial.</p>
     }
 </section>
 @code {

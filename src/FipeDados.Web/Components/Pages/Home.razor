@@ -1,5 +1,5 @@
 @page "/"
-@attribute [OutputCache(PolicyName = PaginaCache.Politica)]
+@attribute [OutputCache(PolicyName = PaginaCache.Ranking)]
 @inject IRankingService Ranking
 @inject ILogger<Home> Logger
 
@@ -20,9 +20,13 @@
     {
         <div class="notice error-notice" role="alert"><Icon Name="info" /><span>Não foi possível carregar o ranking.</span><a class="text-button" href="@Filtro(tipo)">Tentar novamente</a></div>
     }
+    else if (ranking?.Referencia is null)
+    {
+        <div class="notice"><Icon Name="info" /><span>O ranking está sendo preparado. Tente novamente em alguns minutos.</span></div>
+    }
     else
     {
-        <div class="rankings-grid"><RankingCard Alta="true" Carregando="false" SemComparacao="@(ranking?.VeiculosComparados == 0)" Itens="@(ranking?.Altas ?? [])" /><RankingCard Alta="false" Carregando="false" SemComparacao="@(ranking?.VeiculosComparados == 0)" Itens="@(ranking?.Baixas ?? [])" /></div>
+        <div class="rankings-grid"><RankingCard Alta="true" Referencia="ranking?.Referencia" Carregando="false" SemComparacao="@(ranking?.VeiculosComparados == 0)" Itens="@(ranking?.Altas ?? [])" /><RankingCard Alta="false" Referencia="ranking?.Referencia" Carregando="false" SemComparacao="@(ranking?.VeiculosComparados == 0)" Itens="@(ranking?.Baixas ?? [])" /></div>
         @if (ranking?.VeiculosComparados > 0)
         {
             <Anuncio Posicao="home-entre-rankings" />
@@ -46,7 +50,11 @@
     {
         tipo = CatalogPaths.ParseType(TipoQuery);
         erro = false;
-        try { ranking = await Ranking.ObterMensalAsync(tipo); }
+        try
+        {
+            ranking = await Ranking.ObterMensalAsync(tipo);
+            if (ranking.Referencia is null) PaginaCache.NaoArmazenar(HttpContext);
+        }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Falha ao carregar ranking mensal.");

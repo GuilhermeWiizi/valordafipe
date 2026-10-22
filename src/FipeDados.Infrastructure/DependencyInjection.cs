@@ -121,12 +121,14 @@ public static class DependencyInjection
         services.AddScoped<ICatalogService, CatalogService>();
         services.AddScoped<IPrecoService, PrecoService>();
         services.AddScoped<IRankingService, RankingService>();
+        services.AddScoped<RankingAtualizador>();
         services.AddScoped<IVeiculosRelacionadosService, VeiculosRelacionadosService>();
         services.AddOptions<ScraperOptions>();
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<ColetorFipe>();
         services.AddScoped<ColetaMensalService>();
         services.AddHostedService<ReferenceTableRefreshService>();
+        services.AddHostedService<RankingRefreshService>();
 
         return services;
     }
