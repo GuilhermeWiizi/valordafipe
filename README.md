@@ -210,7 +210,11 @@ Depois de enviar as alterações do projeto ao Git e executar o deploy, instale 
 cd /srv/FipeDados
 chmod +x deploy/nginx/atualizar-bots-verificados.sh
 deploy/nginx/atualizar-bots-verificados.sh
-echo '17 4 * * * root /srv/FipeDados/deploy/nginx/atualizar-bots-verificados.sh >/dev/null' > /etc/cron.d/valordafipe-bots
+cat > /etc/cron.d/valordafipe-bots <<'EOF'
+# O cron usa PATH=/usr/bin:/bin, sem o /usr/sbin do nginx.
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+17 4 * * * root /srv/FipeDados/deploy/nginx/atualizar-bots-verificados.sh >/dev/null
+EOF
 cp deploy/nginx/valordafipe.conf /etc/nginx/sites-available/valordafipe.com.br
 ln -s /etc/nginx/sites-available/valordafipe.com.br /etc/nginx/sites-enabled/valordafipe.com.br
 nginx -t && systemctl reload nginx

@@ -5,6 +5,8 @@
 #   17 4 * * * root /srv/FipeDados/deploy/nginx/atualizar-bots-verificados.sh >/dev/null
 # NGINX_BOTS_ARQUIVO muda o destino e NGINX_RECARREGAR=0 pula o teste/reload (uso local).
 set -euo pipefail
+# O cron roda com PATH=/usr/bin:/bin, sem o /usr/sbin onde fica o nginx.
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 DESTINO="${NGINX_BOTS_ARQUIVO:-/etc/nginx/valordafipe-bots-verificados.conf}"
 FONTES=(
