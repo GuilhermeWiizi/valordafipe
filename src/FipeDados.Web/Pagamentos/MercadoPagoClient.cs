@@ -59,11 +59,15 @@ public sealed class MercadoPagoClient(HttpClient http, IOptions<MercadoPagoOptio
     {
         await VerificarContaAsync(ct);
         var valor = pedido.Valor.ToString("0.00", CultureInfo.InvariantCulture);
+        var o = options.Value;
+        object payer = !o.Producao && !string.IsNullOrWhiteSpace(o.NomePagadorTeste)
+            ? new { email = pedido.EmailPagador, first_name = o.NomePagadorTeste.Trim() }
+            : new { email = pedido.EmailPagador };
         var body = new
         {
             type = "online", total_amount = valor, external_reference = pedido.Id.ToString("D"), processing_mode = "automatic",
             transactions = new { payments = new[] { new { amount = valor, payment_method = new { id = "pix", type = "bank_transfer" }, expiration_time = "P1D" } } },
-            payer = new { email = pedido.EmailPagador }
+            payer
         };
         using var dados = await EnviarAsync(HttpMethod.Post, "https://api.mercadopago.com/v1/orders", body, pedido.ChaveIdempotencia, ct);
         return LerOrdem(dados.RootElement);

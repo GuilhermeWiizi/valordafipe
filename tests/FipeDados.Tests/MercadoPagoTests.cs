@@ -82,6 +82,7 @@ public class MercadoPagoTests
             Assert.Equal("P1D", pagamento.GetProperty("expiration_time").GetString());
             Assert.Equal("pix", pagamento.GetProperty("payment_method").GetProperty("id").GetString());
             Assert.Equal(pedido.EmailPagador, body.RootElement.GetProperty("payer").GetProperty("email").GetString());
+            Assert.False(body.RootElement.GetProperty("payer").TryGetProperty("first_name", out _));
             return Json(new
             {
                 id = "ORDTEST123", user_id = "123456", external_reference = pedido.Id, country_code = "BRA", total_amount = "27.90",
@@ -108,6 +109,28 @@ public class MercadoPagoTests
             return Task.FromResult(response);
         })), Options.Create(o), new(), TimeProvider.System);
         Assert.Equal(TimeSpan.FromSeconds(120), (await Assert.ThrowsAsync<MercadoPagoException>(() => rate.VerificarContaAsync())).TentarApos);
+    }
+
+    [Theory]
+    [InlineData(false, "APRO")]
+    [InlineData(true, null)]
+    public async Task ClienteHttp_NomePagadorTesteSoNoAmbienteDeTeste(bool producao, string? esperado)
+    {
+        var o = Config();
+        o.Producao = producao;
+        o.NomePagadorTeste = " APRO ";
+        var pedido = new PedidoPix { Id = Guid.NewGuid(), Valor = 9.90m, EmailPagador = "cliente@example.com", ChaveIdempotencia = Guid.NewGuid().ToString("D") };
+        string? enviado = "nao-chamado";
+        var handler = new HttpFake(async request =>
+        {
+            if (request.RequestUri!.AbsolutePath == "/users/me")
+                return Json(new { id = 123456, tags = producao ? Array.Empty<string>() : new[] { "test_user" } });
+            using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            enviado = body.RootElement.GetProperty("payer").TryGetProperty("first_name", out var nome) ? nome.GetString() : null;
+            return Json(new { id = "ORDTEST123", user_id = "123456", external_reference = pedido.Id, total_amount = "9.90", status = "action_required", status_detail = "waiting_transfer" });
+        });
+        await new MercadoPagoClient(new HttpClient(handler), Options.Create(o), new MercadoPagoContaCache(), TimeProvider.System).CriarAsync(pedido);
+        Assert.Equal(esperado, enviado);
     }
 
     [PostgresFact]

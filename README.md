@@ -541,6 +541,7 @@ uma aplicação de Checkout Transparente (API Orders). Configure no servidor:
 | `MP_CHAVE_PIX_CADASTRADA` | `MercadoPago__ChavePixCadastrada` | `true` após cadastrar uma chave Pix na conta Mercado Pago e habilitar recebimentos |
 | `MP_PRODUCAO` | `MercadoPago__Producao` | `false` para vendedor de teste; `true` para vendedor real |
 | `MP_HABILITADO` | `MercadoPago__Habilitado` | Libera novas compras somente após validar a configuração |
+| `MP_NOME_PAGADOR_TESTE` | `MercadoPago__NomePagadorTeste` | Só com `MP_PRODUCAO=false`: enviado como `payer.first_name`; `APRO` aprova o Pix de teste |
 
 Não envie senha, tokens ou chave secreta no chat. Grave os segredos no `.env`/`.env.vps`
 ignorado pelo Git, ou em variáveis do servidor/user-secrets. O SDK local não carrega `.env`

@@ -9,6 +9,8 @@ public sealed class MercadoPagoOptions
     public string VendedorId { get; set; } = "";
     public string UrlPublica { get; set; } = "";
     public bool ChavePixCadastrada { get; set; }
+    // Só no ambiente de teste: o provedor decide o desfecho do Pix pelo primeiro nome (ex.: APRO aprova).
+    public string NomePagadorTeste { get; set; } = "";
 
     public bool Configurado => Habilitado && ChavePixCadastrada && CredenciaisConfiguradas;
 

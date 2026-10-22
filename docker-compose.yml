@@ -43,6 +43,7 @@ services:
       MercadoPago__VendedorId: ${MP_VENDEDOR_ID:-}
       MercadoPago__UrlPublica: ${MP_URL_PUBLICA:-https://valordafipe.com.br}
       MercadoPago__ChavePixCadastrada: ${MP_CHAVE_PIX_CADASTRADA:-false}
+      MercadoPago__NomePagadorTeste: ${MP_NOME_PAGADOR_TESTE:-}
       Pagamentos__AdministradorId: ${PIX_ADMINISTRADOR_ID:-}
       Pagamentos__ChavePix: ${PIX_CHAVE:-}
       Pagamentos__NomeRecebedor: ${PIX_NOME_RECEBEDOR:-}
