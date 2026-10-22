@@ -249,6 +249,24 @@ class Postgres(unittest.TestCase):
         _, _, pending = h.plan(self.db,h.arguments(["plan", "--veiculo", "444"]),monitor())
         self.assertEqual(0, pending)
 
+    def test_run_sync_keeps_original_month_window_if_another_process_adds_a_reference(self):
+        args = h.arguments(["run", "--meses", "2"])
+        args._run_selection, args._run_references = h.vehicles(self.db,args), h.references(self.db,2)
+        self.db.execute('''UPDATE "Precos" SET "Valor"=40000 WHERE "TabelaReferenciaCodigo"=337;
+            INSERT INTO "TabelasReferencia" VALUES(339,'novembro/2026','2026-11-01');
+            INSERT INTO "Precos" ("VeiculoId","TabelaReferenciaCodigo","Valor","ColetadoEm") VALUES(444,339,41000,now());''')
+        with TemporaryDirectory() as directory:
+            sync = h.Sync({"host":"test"}, Path(directory)/"sync.sqlite3",monitor())
+            try:
+                def batch(rows):
+                    self.assertEqual({337,338},{r["referencia"] for r in rows})
+                    return dict(recebidos=2,gravados=2,preservados=0,nao_mapeados=0,incompativeis=0)
+                with patch.object(sync,"batch",side_effect=batch) as call:
+                    sync.send(self.db,args)
+                    call.assert_called_once()
+            finally:
+                sync.close()
+
     def test_coverage_keeps_all_types_totals_and_distinguishes_empty_rows(self):
         self.db.execute('''INSERT INTO "Marcas" VALUES(998,1,21,'Fiat','fiat'),(997,1,100,'Outra','outra'),(996,2,80,'Honda','honda');
             INSERT INTO "Modelos" VALUES(776,998,10,'Uno'),(775,997,20,'Outro'),(774,996,30,'CG');

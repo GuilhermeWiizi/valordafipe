@@ -99,6 +99,9 @@ A janela completa continua sendo veículos selecionados × meses de referência.
 A prévia mostra totais por etapa e por marca, separados em com preço, sem preço
 (linhas nulas/zero já existentes) e pendentes. Na retomada, os números são recalculados
 pelo banco: mudar a ordem não zera o avanço nem reconsulta preços positivos.
+A seleção de veículos e referências fica fixa durante a passagem: se outro processo
+adicionar o mês seguinte, a sincronização de `run` continua usando a mesma janela da
+coleta atual. Uma nova execução recalcula a janela a partir das referências existentes.
 
 As barras mostram combinações resolvidas no banco sobre o total, incluindo o que
 já estava gravado antes desta execução. Uma tentativa recusada **não avança** essa

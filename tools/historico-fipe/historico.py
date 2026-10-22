@@ -560,7 +560,8 @@ class Sync:
 
     def send(self, db, args):
         self.log.event("SYNC", "Verificando preços locais ainda não confirmados na VPS")
-        selected = vehicles(db, args)
+        selected = args._run_selection if hasattr(args, "_run_selection") else vehicles(db, args)
+        refs = args._run_references if hasattr(args, "_run_references") else references(db, args.meses)
         ids = [v["id"] for v in selected]
         sent = 0
         batch = []
@@ -573,7 +574,7 @@ class Sync:
                     FROM "Precos" p JOIN "Veiculos" v ON v."Id"=p."VeiculoId" JOIN "Modelos" mo ON mo."Id"=v."ModeloId"
                     JOIN "Marcas" ma ON ma."Id"=mo."MarcaId" JOIN "TabelasReferencia" t ON t."Codigo"=p."TabelaReferenciaCodigo"
                     WHERE p."Valor">0 AND v."Id"=ANY(%s) AND t."Codigo"=ANY(%s)
-                    ORDER BY p."Id"''', (ids, [r["codigo"] for r in references(db, args.meses)]))
+                    ORDER BY p."Id"''', (ids, [r["codigo"] for r in refs]))
             for row in cursor:
                 row.pop("local_id")
                 row["chave"] = hashlib.sha256(json.dumps(row, default=str, sort_keys=True).encode()).hexdigest()
@@ -619,6 +620,8 @@ def collect(db, args, log, sync=None):
         if not args.sem_atualizar_referencias:
             refresh_references(db, api, args.meses)
         selected, refs, pending = plan(db, args, log)
+        # A janela fica fixa durante esta passagem, inclusive na virada do mês.
+        args._run_selection, args._run_references = selected, refs
         progress = CollectionProgress(db, args, log, selected, refs)
         last_sync, errors = time.monotonic(), 0
         for index, vehicle in enumerate(selected, 1):
