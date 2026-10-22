@@ -107,6 +107,25 @@ public class ParallelumFipeTests
     }
 
     [Fact]
+    public async Task HistoricoExigePlano_CompartilhaRestricaoSemBloquearMesRecente_EReavaliaAposUmDia()
+    {
+        var clock = new Clock();
+        var estado = new ParallelumEstado(clock);
+        var alternativa = new Handler(r => r.RequestUri!.Query.Contains("reference=336")
+            ? new(HttpStatusCode.PaymentRequired) : Cotacao(mes: "outubro de 2026"));
+        var client = Criar(new(_ => new(HttpStatusCode.Forbidden)), alternativa, estado: estado);
+        await Assert.ThrowsAsync<FipeAcessoHistoricoException>(() => client.ConsultarValorAsync(Query));
+        var outroCliente = Criar(new(_ => new(HttpStatusCode.Forbidden)), alternativa, estado: estado);
+        await Assert.ThrowsAsync<FipeAcessoHistoricoException>(() => outroCliente.ConsultarValorAsync(Query));
+        Assert.Equal(1, alternativa.Chamadas);
+        Assert.NotNull(await outroCliente.ConsultarValorAsync(Query with { CodigoTabela = 338, DataReferencia = new(2026, 10, 1) }));
+        Assert.Equal(2, alternativa.Chamadas);
+        clock.Agora = clock.Agora.AddDays(1);
+        await Assert.ThrowsAsync<FipeAcessoHistoricoException>(() => client.ConsultarValorAsync(Query));
+        Assert.Equal(3, alternativa.Chamadas);
+    }
+
+    [Fact]
     public async Task SemCodigoFipe_UsaMarcaModeloAno_404DePrecoEhAusencia()
     {
         var alternativa = new Handler(request =>
@@ -147,6 +166,12 @@ public class ParallelumFipeTests
         }
         finally { await db.Database.ExecuteSqlRawAsync($"DROP SCHEMA {schema} CASCADE"); }
 #pragma warning restore EF1002
+    }
+
+    private sealed class Clock : TimeProvider
+    {
+        public DateTimeOffset Agora { get; set; } = DateTimeOffset.UtcNow;
+        public override DateTimeOffset GetUtcNow() => Agora;
     }
 
     private sealed class Handler(Func<HttpRequestMessage, HttpResponseMessage> resposta) : HttpMessageHandler

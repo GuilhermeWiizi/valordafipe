@@ -85,6 +85,23 @@ public class VeiculoAutoHistoryTests
         Assert.Equal(1, services.GetRequiredService<TestNavigation>().Refreshes);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public async Task HistoricoExigePlano_NaoRepeteEExibeMesesQueConseguiuSalvar(int mesesSalvos)
+    {
+        using var services = Services();
+        await using var renderer = new IslandRenderer(services);
+        var preco = services.GetRequiredService<FakePreco>();
+        preco.Complete = _ => Task.FromResult(new ResultadoColeta(mesesSalvos, new FipeAcessoHistoricoException()));
+        var ilha = await renderer.Show(veiculoId: 1);
+        // Deve terminar sem entrar na espera de retentativa.
+        await renderer.Dispatcher.InvokeAsync(ilha.Interactive).WaitAsync(TimeSpan.FromSeconds(5));
+        await renderer.Dispatcher.InvokeAsync(ilha.Interactive);
+        Assert.Single(preco.Calls);
+        Assert.Equal(mesesSalvos, services.GetRequiredService<TestNavigation>().Refreshes);
+    }
+
     [Fact]
     public async Task FalhasSeguidas_AumentamEsperaAteCincoMinutos_SairCancelaRetentativa()
     {

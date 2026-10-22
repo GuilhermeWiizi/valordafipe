@@ -320,7 +320,11 @@ reutilizados. A busca pode levar alguns segundos e mostra um indicador de andame
   pausa o acesso direto por pelo menos 5 minutos e valida veículo e mês antes de gravar.
   A modalidade sem token permite 500 chamadas por dia para toda a VPS: ao receber 429,
   respeita `Retry-After` ou aguarda 24h sem novas chamadas à alternativa. Não há contratação
-  automática de plano. Falhas e bloqueios da alternativa não são gravados como ausência de preço.
+  automática de plano. Um HTTP 402 indica histórico restrito ao plano: encerra a tentativa
+  silenciosamente, atualiza a página se salvou meses e evita consultar essa referência na
+  alternativa por 24h (compartilhado entre veículos), sem bloquear referências recentes ou
+  a FIPE direta. O plano gratuito não garante os 24 meses de histórico. Falhas e bloqueios
+  da alternativa não são gravados como ausência de preço.
 - **Job de fundo:** `ReferenceTableRefreshService` mantém as tabelas de referência (24 meses)
   atualizadas e pré-carrega as marcas no startup.
 

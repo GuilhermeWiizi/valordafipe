@@ -47,9 +47,9 @@
 
                 token.ThrowIfCancellationRequested();
                 if (atualizando) { atualizando = false; StateHasChanged(); }
-                if (falha is null)
+                if (falha is null or FipeAcessoHistoricoException)
                 {
-                    // Uma única atualização ao terminar, inclusive quando uma tentativa anterior salvou meses.
+                    // Mostra também os meses salvos antes de uma restrição de acesso permanente.
                     if (temNovosMeses) Nav.Refresh();
                     return;
                 }

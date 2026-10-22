@@ -8,9 +8,12 @@ namespace FipeDados.Infrastructure.Fipe;
 /// <summary>Pausas compartilhadas pelas instâncias do cliente, inclusive entre veículos diferentes.</summary>
 public sealed class ParallelumEstado(TimeProvider clock)
 {
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTimeOffset> referenciasRestritas = new();
     public DateTimeOffset DiretaPausadaAte { get; set; }
     public DateTimeOffset AlternativaPausadaAte { get; set; }
     public DateTimeOffset Agora => clock.GetUtcNow();
+    public bool ReferenciaRestrita(string referencia) => referenciasRestritas.TryGetValue(referencia, out var ate) && ate > Agora;
+    public void RestringirReferencia(string referencia) => referenciasRestritas[referencia] = Agora.AddDays(1);
 }
 
 /// <summary>Traduz a API v2 da Parallelum para os DTOs usados pelo cliente direto da FIPE.</summary>
@@ -45,8 +48,20 @@ public sealed class ParallelumFipeClient(HttpClient http, ParallelumEstado estad
             "ConsultarValorComTodosParametros" => $"{tipo}/brands/{Segmento("codigoMarca")}/models/{Segmento("codigoModelo")}/years/{Uri.EscapeDataString(ano)}",
             _ => throw new HttpRequestException("Operação de consulta desconhecida.")
         };
-        if (endpoint != "ConsultarTabelaDeReferencia") path += "?reference=" + Segmento("codigoTabelaReferencia");
+        var referencia = endpoint == "ConsultarTabelaDeReferencia" ? null : Campo("codigoTabelaReferencia");
+        if (referencia is not null)
+        {
+            if (estado.ReferenciaRestrita(referencia)) throw new FipeAcessoHistoricoException();
+            path += "?reference=" + Uri.EscapeDataString(referencia);
+        }
         using var response = await EnviarAsync(path, ct);
+        if (response.StatusCode == HttpStatusCode.PaymentRequired)
+        {
+            // Não consumir a quota repetindo uma referência que o plano não permite.
+            // As referências recentes e a fonte direta continuam disponíveis.
+            if (referencia is not null) estado.RestringirReferencia(referencia);
+            throw new FipeAcessoHistoricoException();
+        }
         if (response.StatusCode == HttpStatusCode.TooManyRequests)
         {
             // O plano gratuito tem quota diária. Sem indicação do provedor, esperar 24h.
