@@ -6,11 +6,12 @@ namespace FipeDados.Web.Components.Pages;
 /// </summary>
 public static class Responsavel
 {
-    public const string Nome = "[PREENCHER: nome completo ou razão social do responsável pelo site]";
-    public const string Email = "[PREENCHER: e-mail de contato para privacidade e suporte]";
+    public const string Nome = "Guilherme Silva Campos";
+    public const string Email = "valordafipe@gmail.com";
 
-    /// <summary>Guarda dos registros de acesso. O Marco Civil (art. 15) exige 6 meses de pessoa jurídica com fins econômicos.</summary>
-    public const string PrazoLogs = "[PREENCHER: prazo de guarda dos logs, por exemplo 6 meses]";
+    /// <summary>Guarda dos registros de acesso; acompanha o logrotate do Nginx na VPS (rotate 14).
+    /// O Marco Civil (art. 15) exige 6 meses se o responsável passar a ser pessoa jurídica com fins econômicos.</summary>
+    public const string PrazoLogs = "14 dias";
 
-    public const string UltimaAtualizacao = "21/10/2026";
+    public const string UltimaAtualizacao = "22/10/2026";
 }
