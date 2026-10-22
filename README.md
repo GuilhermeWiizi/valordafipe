@@ -328,6 +328,14 @@ reutilizados. A busca pode levar alguns segundos e mostra um indicador de andame
 - **Job de fundo:** `ReferenceTableRefreshService` mantém as tabelas de referência (24 meses)
   atualizadas e pré-carrega as marcas no startup.
 
+## Coleta retroativa externa em Python
+
+O [coletor Python](tools/historico-fipe/README.md) roda independentemente do .NET,
+consulta pela máquina local e sincroniza preços com a VPS via SSH. Inclui prévia,
+logs por veículo/mês, pausas visíveis, retomada e merge incremental que preserva
+preços positivos já existentes. Na pasta `tools/historico-fipe`, execute
+`preparar.bat`, `executar.bat plan` e `executar.bat run`.
+
 ## Coleta em lote (`FipeDados.Scraper`)
 
 Além da coleta sob demanda do site, o console `FipeDados.Scraper` popula o banco de uma vez:

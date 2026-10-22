@@ -1,0 +1,15 @@
+# Copie para historico.local.toml (ignorado pelo Git).
+# Também é possível definir FIPE_LOCAL_DSN em vez de guardar a conexão aqui.
+local_dsn = "host=localhost port=5432 dbname=fipedados user=fipe password=fipe"
+
+[vps]
+host = "srv1684584.hstgr.cloud"
+port = 22
+user = "root"
+# Opcional: caminho da chave privada SSH. Sem chave, usa agente/chaves locais
+# e solicita a senha no terminal caso a autenticação por chave não funcione.
+key_file = ""
+password_env = "FIPE_VPS_SSH_PASSWORD"
+container = "fipedados-fipedados-db-1"
+database = "fipedados"
+db_user = "fipe"

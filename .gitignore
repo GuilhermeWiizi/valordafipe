@@ -11,6 +11,10 @@ obj/
 # PostgreSQL portátil (tools/pg-portable.ps1) e logs do coletor
 .pgsql/
 logs/
+__pycache__/
+*.pyc
+.venv/
+tools/historico-fipe/historico.local.toml
 
 # Configuração local do Claude Code
 .claude/settings.local.json

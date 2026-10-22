@@ -6,6 +6,13 @@
       "runtimeExecutable": "dotnet",
       "runtimeArgs": ["run", "--project", "src/FipeDados.Web", "--launch-profile", "http"],
       "port": 5041
+    },
+    {
+      "name": "web-isolado",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "src/FipeDados.Web", "--launch-profile", "http", "--artifacts-path", "../fipedados-preview-build", "--", "--urls", "http://localhost:5051"],
+      "port": 5051,
+      "autoPort": false
     }
   ]
 }
