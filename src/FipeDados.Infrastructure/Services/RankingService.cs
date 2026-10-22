@@ -68,7 +68,13 @@ public class RankingService(IDbContextFactory<FipeDbContext> dbFactory, IMemoryC
             .Select(p => new ItemRanking(p.VeiculoId, p.Marca, p.Modelo, p.AnoLabel, p.Atual, p.Anterior,
                 p.Tipo, p.MarcaSlug, p.ModeloSlug, p.AnoModeloCodigo)).ToListAsync(ct);
         // Agrupa antes de limitar: altas e estabilidade também entram na média da marca.
-        var marcas = await comparaveis.GroupBy(p => new { p.MarcaId, p.Marca, p.Tipo })
+        // Só marcas relevantes; o slug se repete entre tipos (ex.: honda), por isso o filtro é por tipo.
+        var carros = MarcasRelevantes.Carros;
+        var motos = MarcasRelevantes.Motos;
+        var marcas = await comparaveis
+            .Where(p => (p.Tipo == TipoVeiculo.Carro && carros.Contains(p.MarcaSlug))
+                     || (p.Tipo == TipoVeiculo.Moto && motos.Contains(p.MarcaSlug)))
+            .GroupBy(p => new { p.MarcaId, p.Marca, p.Tipo })
             .Select(g => new
             {
                 g.Key.MarcaId, g.Key.Marca, g.Key.Tipo,

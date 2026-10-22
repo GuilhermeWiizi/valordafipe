@@ -7,7 +7,7 @@
     }
     else if (Itens.Count == 0)
     {
-        <div class="brand-ranking-empty"><Icon Name="info" Size="24" /><div><h4>@(SemComparacao ? "Ainda faltam preços para comparar as marcas" : "Nenhuma marca com queda média neste filtro")</h4><p>@(SemComparacao ? "O ranking aparece quando houver veículos com preço nos dois meses." : "Nos dados disponíveis, nenhuma marca apresentou média mensal negativa.")</p></div></div>
+        <div class="brand-ranking-empty"><Icon Name="info" Size="24" /><div><h4>@(SemComparacao ? "Ainda faltam preços para comparar as marcas" : "Nenhuma das principais marcas teve queda média neste filtro")</h4><p>@(SemComparacao ? "O ranking aparece quando houver veículos com preço nos dois meses." : "Nos dados disponíveis, nenhuma das principais marcas apresentou média mensal negativa.")</p></div></div>
     }
     else
     {
@@ -20,7 +20,7 @@
             }
         </ol>
     }
-    <p class="brand-ranking-method"><Icon Name="info" Size="15" /><span>Média simples da variação percentual de <strong>todos os veículos comparáveis de cada marca</strong>, incluindo altas e estabilidade. Só entram preços positivos nos dois meses. Cada ano e versão conta como um veículo. A amostra pode ser parcial; carros e motos da mesma marca são calculados separadamente.</span></p>
+    <p class="brand-ranking-method"><Icon Name="info" Size="15" /><span>Considera apenas as principais marcas do mercado brasileiro. Média simples da variação percentual de <strong>todos os veículos comparáveis de cada marca</strong>, incluindo altas e estabilidade. Só entram preços positivos nos dois meses. Cada ano e versão conta como um veículo. A amostra pode ser parcial; carros e motos da mesma marca são calculados separadamente.</span></p>
 </section>
 
 @code {

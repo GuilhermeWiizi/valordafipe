@@ -34,8 +34,8 @@ public class RankingServiceTests
             var anterior = new TabelaReferencia { Codigo = 2, Data = new(2026, 9, 1), Mes = "setembro/2026" };
             var antigo = new TabelaReferencia { Codigo = 1, Data = new(2026, 8, 1), Mes = "agosto/2026" };
             db.AddRange(atual, anterior, antigo);
-            var carro = new Modelo { Nome = "Carro", CodigoFipe = 1, Marca = new Marca { Nome = "Marca", CodigoFipe = 1, Tipo = TipoVeiculo.Carro } };
-            var moto = new Modelo { Nome = "Moto", CodigoFipe = 1, Marca = new Marca { Nome = "Marca", CodigoFipe = 1, Tipo = TipoVeiculo.Moto } };
+            var carro = new Modelo { Nome = "Carro", CodigoFipe = 1, Marca = new Marca { Nome = "Marca", CodigoFipe = 1, Tipo = TipoVeiculo.Carro, Slug = "fiat" } };
+            var moto = new Modelo { Nome = "Moto", CodigoFipe = 1, Marca = new Marca { Nome = "Marca", CodigoFipe = 1, Tipo = TipoVeiculo.Moto, Slug = "honda" } };
             var sequencia = 0;
             void Adicionar(Modelo modelo, decimal? valor, decimal? passado, TabelaReferencia? referencia = null)
             {
@@ -68,7 +68,7 @@ public class RankingServiceTests
             Assert.Equal(2, motos.VeiculosComparados);
             Assert.Single(motos.Altas); Assert.Single(motos.Baixas);
 
-            var marcaMista = new Modelo { Nome = "Misto", CodigoFipe = 1, Marca = new Marca { Nome = "Marca 1", CodigoFipe = 10, Tipo = TipoVeiculo.Carro } };
+            var marcaMista = new Modelo { Nome = "Misto", CodigoFipe = 1, Marca = new Marca { Nome = "Marca 1", CodigoFipe = 10, Tipo = TipoVeiculo.Carro, Slug = "toyota" } };
             Adicionar(marcaMista, 110, 100); // +10%
             Adicionar(marcaMista, 700, 1000); // -30%; a média percentual simples é -10%, sem ponderação por preço.
             await db.SaveChangesAsync();
@@ -80,7 +80,7 @@ public class RankingServiceTests
             Adicionar(marcaMista, 50, 0); // Não há base positiva para calcular variação.
             Adicionar(marcaMista, 50, null);
             Adicionar(marcaMista, 50, 100, antigo); // Agosto não substitui setembro.
-            var mesmaMarcaMoto = new Modelo { Nome = "Moto mista", CodigoFipe = 1, Marca = new Marca { Nome = "Marca 1", CodigoFipe = 10, Tipo = TipoVeiculo.Moto } };
+            var mesmaMarcaMoto = new Modelo { Nome = "Moto mista", CodigoFipe = 1, Marca = new Marca { Nome = "Marca 1", CodigoFipe = 10, Tipo = TipoVeiculo.Moto, Slug = "yamaha" } };
             Adicionar(mesmaMarcaMoto, 20, 100);
             await db.SaveChangesAsync();
             var separadas = (await service.ObterMensalAsync()).MarcasComMaiorDesvalorizacao;
@@ -92,9 +92,10 @@ public class RankingServiceTests
             Assert.Equal(3, separadas[1].VeiculosComparados);
             Assert.Equal(-20m / 3, separadas[1].VariacaoMediaPct, 10);
 
+            string[] slugs = ["ford", "hyundai", "jeep", "renault", "nissan", "byd"];
             for (var i = 2; i <= 7; i++)
             {
-                var modelo = new Modelo { Nome = $"Modelo {i}", CodigoFipe = 1, Marca = new Marca { Nome = $"Marca {i}", CodigoFipe = 10 + i, Tipo = TipoVeiculo.Carro } };
+                var modelo = new Modelo { Nome = $"Modelo {i}", CodigoFipe = 1, Marca = new Marca { Nome = $"Marca {i}", CodigoFipe = 10 + i, Tipo = TipoVeiculo.Carro, Slug = slugs[i - 2] } };
                 Adicionar(modelo, 100 - i * 10, 100);
             }
             await db.SaveChangesAsync();
@@ -105,6 +106,22 @@ public class RankingServiceTests
             Assert.All(topCarros, m => Assert.Equal(TipoVeiculo.Carro, m.Tipo));
             Assert.Equal(new decimal[] { -70, -60, -50, -40, -30 }, topCarros.Select(m => m.VariacaoMediaPct));
             Assert.Single((await service.ObterMensalAsync(TipoVeiculo.Moto)).MarcasComMaiorDesvalorizacao);
+
+            // Marca fora da lista não entra no ranking de marcas, mas o veículo segue nas baixas.
+            var obscura = new Modelo { Nome = "Obscuro", CodigoFipe = 1, Marca = new Marca { Nome = "Seres", CodigoFipe = 30, Tipo = TipoVeiculo.Carro, Slug = "seres" } };
+            Adicionar(obscura, 1, 100); // -99%
+            // A lista é por tipo: royal-enfield só é relevante como moto.
+            var reCarro = new Modelo { Nome = "RE carro", CodigoFipe = 1, Marca = new Marca { Nome = "Royal Enfield", CodigoFipe = 31, Tipo = TipoVeiculo.Carro, Slug = "royal-enfield" } };
+            var reMoto = new Modelo { Nome = "RE moto", CodigoFipe = 1, Marca = new Marca { Nome = "Royal Enfield", CodigoFipe = 31, Tipo = TipoVeiculo.Moto, Slug = "royal-enfield" } };
+            Adicionar(reCarro, 5, 100); // -95%
+            Adicionar(reMoto, 10, 100); // -90%
+            await db.SaveChangesAsync();
+            var filtrado = await service.ObterMensalAsync();
+            Assert.Equal("Seres", filtrado.Baixas[0].Marca);
+            Assert.DoesNotContain(filtrado.MarcasComMaiorDesvalorizacao, m => m.Marca == "Seres");
+            Assert.Equal(new decimal[] { -90, -80, -70, -60, -50 }, filtrado.MarcasComMaiorDesvalorizacao.Select(m => m.VariacaoMediaPct));
+            Assert.Equal(TipoVeiculo.Moto, filtrado.MarcasComMaiorDesvalorizacao[0].Tipo);
+            Assert.DoesNotContain((await service.ObterMensalAsync(TipoVeiculo.Carro)).MarcasComMaiorDesvalorizacao, m => m.Marca == "Royal Enfield");
 
             db.Add(new TabelaReferencia { Codigo = 4, Data = new(2026, 11, 1), Mes = "novembro/2026" });
             await db.SaveChangesAsync();
