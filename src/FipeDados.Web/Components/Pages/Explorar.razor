@@ -19,8 +19,8 @@
     <div class="search-panel-heading"><div><span class="panel-eyebrow">CONSULTA PERSONALIZADA</span><h2 id="search-heading">Qual veículo você quer consultar?</h2></div><span class="search-panel-badge"><Icon Name="shield" Size="15" /> Referência Fipe</span></div>
     <div class="vehicle-type-label">Comece pelo tipo de veículo</div>
     <div class="vehicle-type-picker" role="group" aria-label="Tipo de veículo">
-        <button class="@(tipo == TipoVeiculo.Carro ? "selected" : "")" aria-pressed="@(tipo == TipoVeiculo.Carro)" @onclick="() => TrocarTipo(TipoVeiculo.Carro)"><Icon Name="car" Size="25" /><span>Carros<small>Do primeiro carro ao próximo.</small></span><span class="type-radio">@if (tipo == TipoVeiculo.Carro) { <span></span> }</span></button>
-        <button class="@(tipo == TipoVeiculo.Moto ? "selected" : "")" aria-pressed="@(tipo == TipoVeiculo.Moto)" @onclick="() => TrocarTipo(TipoVeiculo.Moto)"><Icon Name="bike" Size="25" /><span>Motos<small>Liberdade em duas rodas.</small></span><span class="type-radio">@if (tipo == TipoVeiculo.Moto) { <span></span> }</span></button>
+        <button disabled="@(!RendererInfo.IsInteractive)" class="@(tipo == TipoVeiculo.Carro ? "selected" : "")" aria-pressed="@(tipo == TipoVeiculo.Carro)" @onclick="() => TrocarTipo(TipoVeiculo.Carro)"><Icon Name="car" Size="25" /><span>Carros<small>Do primeiro carro ao próximo.</small></span><span class="type-radio">@if (tipo == TipoVeiculo.Carro) { <span></span> }</span></button>
+        <button disabled="@(!RendererInfo.IsInteractive)" class="@(tipo == TipoVeiculo.Moto ? "selected" : "")" aria-pressed="@(tipo == TipoVeiculo.Moto)" @onclick="() => TrocarTipo(TipoVeiculo.Moto)"><Icon Name="bike" Size="25" /><span>Motos<small>Liberdade em duas rodas.</small></span><span class="type-radio">@if (tipo == TipoVeiculo.Moto) { <span></span> }</span></button>
     </div>
     <div class="selection-fields">
         <SearchSelect Label="Marca" Step="01" Items="MarcasComTodas" Value="marcaId" ValueChanged="TrocarMarca" Loading="carregandoMarcas" Placeholder="Escolha a marca" Hint="Busque pelo nome da fabricante" />

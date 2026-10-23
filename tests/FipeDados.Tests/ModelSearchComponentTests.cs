@@ -11,6 +11,7 @@ using FipeDados.Web.Seo;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Components.RenderTree;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,43 @@ namespace FipeDados.Tests;
 
 public class ModelSearchComponentTests
 {
+    [Fact]
+    public async Task Combo_HtmlInicialIndicaPreparacao_EMantemBotaoDesabilitado()
+    {
+        await using var services = Services();
+        await using var renderer = new HtmlRenderer(services, services.GetRequiredService<ILoggerFactory>());
+        var html = await renderer.Dispatcher.InvokeAsync(async () =>
+        {
+            var combo = await renderer.RenderComponentAsync<SearchSelect>(ParameterView.FromDictionary(new Dictionary<string, object?>
+            { ["Label"] = "Modelo", ["Placeholder"] = "Escolha o modelo" }));
+            return System.Net.WebUtility.HtmlDecode(combo.ToHtmlString());
+        });
+        Assert.Matches("<button[^>]*class=\"select-trigger\"[^>]*disabled", html);
+        Assert.Contains("Preparando consulta…", html);
+        Assert.DoesNotContain("Escolha o modelo", html);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Combo_PrimeiroCliqueInterativoAbre_ParaListaLocalEPesquisa(bool remoto)
+    {
+        await using var services = Services();
+        await using var renderer = new TestRenderer(services);
+        var combo = renderer.Create<RenderedSelect>();
+        Func<string, CancellationToken, Task<ResultadoPesquisaSelecao>> provider = (_, _) =>
+            Task.FromResult(new ResultadoPesquisaSelecao([new(1, "Modelo")]));
+        await renderer.Show(combo, new()
+        {
+            ["Label"] = "Modelo", ["Items"] = new ItemSelecao[] { new(1, "Modelo") },
+            ["SearchProvider"] = remoto ? provider : null, ["SearchEmpty"] = remoto
+        });
+        Assert.DoesNotContain(renderer.Attributes(combo), a => a.AttributeName == "disabled" && Equals(a.AttributeValue, true));
+        await renderer.Click(combo);
+        Assert.True(Get<bool>(combo, "aberto"));
+        Assert.Contains(renderer.Attributes(combo), a => a.AttributeName == "role" && Equals(a.AttributeValue, "listbox"));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -289,6 +327,10 @@ public class ModelSearchComponentTests
         protected override Task OnAfterRenderAsync(bool firstRender) => Task.CompletedTask;
         public Task Interactive() => base.OnAfterRenderAsync(false);
     }
+    public sealed class RenderedSelect : SearchSelect
+    {
+        protected override Task OnAfterRenderAsync(bool firstRender) => Task.CompletedTask;
+    }
     public sealed class TestPage : Explorar
     {
         protected override void BuildRenderTree(RenderTreeBuilder builder) { }
@@ -297,6 +339,7 @@ public class ModelSearchComponentTests
 #pragma warning disable BL0006
     private sealed class TestRenderer(IServiceProvider services) : Renderer(services, services.GetRequiredService<ILoggerFactory>())
     {
+        protected override RendererInfo RendererInfo { get; } = new("Test", isInteractive: true);
         public override Dispatcher Dispatcher { get; } = Dispatcher.CreateDefault();
         private readonly Dictionary<ComponentBase, int> roots = [];
         public T Create<T>() where T : ComponentBase
@@ -305,6 +348,13 @@ public class ModelSearchComponentTests
         }
         public Task Show(ComponentBase component, Dictionary<string, object?> parameters) => Dispatcher.InvokeAsync(() => RenderRootComponentAsync(roots[component], ParameterView.FromDictionary(parameters)));
         public Task Call(ComponentBase component, string name, params object[] args) => Dispatcher.InvokeAsync(() => Invoke(component, name, args) as Task ?? Task.CompletedTask);
+        public RenderTreeFrame[] Attributes(ComponentBase component)
+        {
+            var frames = GetCurrentRenderTreeFrames(roots[component]);
+            return frames.Array.Take(frames.Count).Where(f => f.FrameType == RenderTreeFrameType.Attribute).ToArray();
+        }
+        public Task Click(ComponentBase component) => Dispatcher.InvokeAsync(() =>
+            DispatchEventAsync(Attributes(component).First(a => a.AttributeName == "onclick").AttributeEventHandlerId, null, new MouseEventArgs()));
         public Task Search(TestSelect combo, string termo) => Dispatcher.InvokeAsync(() => { Set(combo, "termo", termo); return (Task)Invoke(combo, "AtualizarBusca")!; });
         public Task<ResultadoPesquisaSelecao> Query(TestPage page, string termo) => Dispatcher.InvokeAsync(() => (Task<ResultadoPesquisaSelecao>)Invoke(page, "PesquisarModelos", termo, CancellationToken.None)!);
         protected override Task UpdateDisplayAsync(in RenderBatch batch) => Task.CompletedTask;

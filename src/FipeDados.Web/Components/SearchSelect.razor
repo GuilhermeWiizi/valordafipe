@@ -2,14 +2,14 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 @inject ILogger<SearchSelect> Logger
-<div class="search-select @(aberto ? "is-open" : "") @(Value > 0 ? "has-value" : "") @(Disabled || Loading ? "is-disabled" : "")" @onkeydown="Tecla">
+<div class="search-select @(aberto ? "is-open" : "") @(Value > 0 ? "has-value" : "") @(Disabled || Carregando ? "is-disabled" : "")" @onkeydown="Tecla">
     <label id="@(id + "-label")" for="@id" class="field-label"><span class="field-step">@Step</span>@Label @if (Value > 0) { <Icon Name="check" Class="field-check" Size="14" /> }</label>
-    <button @ref="gatilho" id="@id" type="button" class="select-trigger" aria-labelledby="@(id + "-label " + id + "-value")" aria-haspopup="listbox" aria-expanded="@(aberto ? "true" : "false")" aria-controls="@(id + "-options")" disabled="@(Disabled || Loading)" @onclick="Alternar">
-        <span id="@(id + "-value")">@(Loading ? "Carregando…" : RotuloSelecionado)</span>
-        @if (Loading) { <span class="small-spinner" aria-hidden="true"></span> } else { <Icon Name="chevron" Size="17" Class="select-chevron" /> }
+    <button @ref="gatilho" id="@id" type="button" class="select-trigger" aria-labelledby="@(id + "-label " + id + "-value")" aria-haspopup="listbox" aria-expanded="@(aberto ? "true" : "false")" aria-controls="@(id + "-options")" disabled="@(Disabled || Carregando)" @onclick="Alternar">
+        <span id="@(id + "-value")">@(!RendererInfo.IsInteractive ? "Preparando consulta…" : Loading ? "Carregando…" : RotuloSelecionado)</span>
+        @if (Carregando) { <span class="small-spinner" aria-hidden="true"></span> } else { <Icon Name="chevron" Size="17" Class="select-chevron" /> }
     </button>
     <small class="field-hint">@Hint</small>
-    @if (aberto && !Disabled && !Loading)
+    @if (aberto && !Disabled && !Carregando)
     {
         <button type="button" class="select-backdrop" tabindex="-1" aria-label="Fechar opções de @Label" @onclick="Fechar"></button>
         <div class="select-dropdown">
@@ -55,6 +55,7 @@
     private bool pesquisando, temMais, descartado;
     private string? erroPesquisa;
     private object? contextoPesquisa;
+    private bool Carregando => Loading || !RendererInfo.IsInteractive;
     private bool PodePesquisar => termo.Trim().Length >= 2 || (SearchEmpty && string.IsNullOrWhiteSpace(termo));
     private string RotuloSelecionado => (SelectedItem?.Id == Value ? SelectedItem.Nome : null)
         ?? Items.FirstOrDefault(x => x.Id == Value)?.Nome
@@ -78,6 +79,7 @@
     private Task FiltrarLocal() { AtualizarFiltro(); return Task.CompletedTask; }
     private async Task Alternar()
     {
+        if (Disabled || Carregando || descartado) return;
         if (aberto) { Fechar(); return; }
         ++versaoAbertura;
         aberto = true; termo = ""; focar = true;
