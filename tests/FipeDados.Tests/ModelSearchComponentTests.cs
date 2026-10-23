@@ -21,6 +21,85 @@ namespace FipeDados.Tests;
 
 public class ModelSearchComponentTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Combo_FecharDuranteImportacao_NaoUsaCampoRemovido(bool reabrir)
+    {
+        var importacao = new TaskCompletionSource<IJSObjectReference>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var js = new SelectJS { Importacao = importacao.Task };
+        await using var services = Services(js);
+        await using var renderer = new TestRenderer(services);
+        var combo = renderer.Create<TestSelect>();
+        await renderer.Show(combo, new() { ["Items"] = new ItemSelecao[] { new(1, "Modelo") } });
+        await renderer.Call(combo, "Alternar");
+        var render = renderer.Dispatcher.InvokeAsync(combo.Interactive);
+        await renderer.Call(combo, "Fechar");
+        if (reabrir) await renderer.Call(combo, "Alternar");
+        importacao.SetResult(js);
+        await render;
+        Assert.Empty(js.Chamadas);
+        if (reabrir)
+        {
+            await renderer.Dispatcher.InvokeAsync(combo.Interactive);
+            Assert.Equal(["prepare", "scrollActive"], js.Chamadas);
+        }
+    }
+
+    [Fact]
+    public async Task Combo_FecharDuranteFoco_NaoTentaRolarCampoRemovido()
+    {
+        var foco = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var js = new SelectJS { Preparacao = foco.Task };
+        await using var services = Services(js);
+        await using var renderer = new TestRenderer(services);
+        var combo = renderer.Create<TestSelect>();
+        await renderer.Show(combo, new() { ["Items"] = new ItemSelecao[] { new(1, "Modelo") } });
+        await renderer.Call(combo, "Alternar");
+        var render = renderer.Dispatcher.InvokeAsync(combo.Interactive);
+        Assert.Equal(["prepare"], js.Chamadas);
+        await renderer.Call(combo, "Fechar");
+        foco.SetResult();
+        await render;
+        Assert.Equal(["prepare"], js.Chamadas);
+    }
+
+    [Fact]
+    public async Task Combo_FalhaDeRolagem_NaoEncerraCircuito_EPermiteReabrir()
+    {
+        var js = new SelectJS { FalhaRolagem = true };
+        await using var services = Services(js);
+        await using var renderer = new TestRenderer(services);
+        var combo = renderer.Create<TestSelect>();
+        await renderer.Show(combo, new() { ["Items"] = new ItemSelecao[] { new(1, "Modelo") } });
+        await renderer.Call(combo, "Alternar");
+        await renderer.Dispatcher.InvokeAsync(combo.Interactive);
+        Assert.True(Get<bool>(combo, "aberto"));
+        js.FalhaRolagem = false;
+        await renderer.Call(combo, "Fechar");
+        await renderer.Call(combo, "Alternar");
+        await renderer.Dispatcher.InvokeAsync(combo.Interactive);
+        Assert.Equal(["prepare", "scrollActive", "prepare", "scrollActive"], js.Chamadas);
+    }
+
+    [Fact]
+    public async Task Combo_DescartarDuranteImportacao_LiberaModuloSemUsarCampo()
+    {
+        var importacao = new TaskCompletionSource<IJSObjectReference>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var js = new SelectJS { Importacao = importacao.Task };
+        await using var services = Services(js);
+        await using var renderer = new TestRenderer(services);
+        var combo = renderer.Create<TestSelect>();
+        await renderer.Show(combo, []);
+        await renderer.Call(combo, "Alternar");
+        var render = renderer.Dispatcher.InvokeAsync(combo.Interactive);
+        await renderer.Dispatcher.InvokeAsync(async () => await combo.DisposeAsync());
+        importacao.SetResult(js);
+        await render;
+        Assert.Empty(js.Chamadas);
+        Assert.True(js.Descartado);
+    }
+
     [Fact]
     public async Task Combo_AguardaDoisCaracteresEAgrupaDigitacao_PreservaSelecao()
     {
@@ -198,16 +277,17 @@ public class ModelSearchComponentTests
     private static void Set(object component, string name, object value) => Base(component).GetField(name, Flags)!.SetValue(component, value);
     private static object? Invoke(object component, string name, params object[] args) => Base(component).GetMethod(name, Flags)!.Invoke(component, args);
 
-    private static ServiceProvider Services() => new ServiceCollection().AddLogging()
+    private static ServiceProvider Services(IJSRuntime? js = null) => new ServiceCollection().AddLogging()
         .AddSingleton<FakeCatalog>().AddSingleton<ICatalogService>(s => s.GetRequiredService<FakeCatalog>())
         .AddSingleton(new PublicCatalog(new UnusedDatabase(), Options.Create(new FipeApiOptions())))
         .AddSingleton<NavigationManager, TestNavigation>().AddSingleton<OfertaPlano>()
-        .AddSingleton<IJSRuntime, UnusedJS>().BuildServiceProvider();
+        .AddSingleton<IJSRuntime>(js ?? new UnusedJS()).BuildServiceProvider();
 
     public sealed class TestSelect : SearchSelect
     {
         protected override void BuildRenderTree(RenderTreeBuilder builder) { }
         protected override Task OnAfterRenderAsync(bool firstRender) => Task.CompletedTask;
+        public Task Interactive() => base.OnAfterRenderAsync(false);
     }
     public sealed class TestPage : Explorar
     {
@@ -257,5 +337,24 @@ public class ModelSearchComponentTests
     {
         public ValueTask<T> InvokeAsync<T>(string identifier, object?[]? args) => throw new NotSupportedException();
         public ValueTask<T> InvokeAsync<T>(string identifier, CancellationToken ct, object?[]? args) => throw new NotSupportedException();
+    }
+    private sealed class SelectJS : IJSRuntime, IJSObjectReference
+    {
+        public Task<IJSObjectReference>? Importacao;
+        public Task? Preparacao;
+        public bool FalhaRolagem, Descartado;
+        public List<string> Chamadas { get; } = [];
+        public ValueTask<T> InvokeAsync<T>(string identifier, object?[]? args)
+            => InvokeAsync<T>(identifier, CancellationToken.None, args);
+        public async ValueTask<T> InvokeAsync<T>(string identifier, CancellationToken ct, object?[]? args)
+        {
+            if (identifier == "import") return (T)(object)(Importacao is null ? this : await Importacao);
+            Chamadas.Add(identifier);
+            if (identifier == "prepare" && Preparacao is not null) await Preparacao;
+            if (identifier == "scrollActive" && FalhaRolagem)
+                throw new JSException("Cannot read properties of null (reading 'getAttribute')");
+            return default!;
+        }
+        public ValueTask DisposeAsync() { Descartado = true; return ValueTask.CompletedTask; }
     }
 }

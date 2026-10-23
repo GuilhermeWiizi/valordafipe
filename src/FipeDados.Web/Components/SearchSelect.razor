@@ -51,7 +51,7 @@
     private List<ItemSelecao> filtrados = [];
     private ItemSelecao? selecionado;
     private CancellationTokenSource? pesquisa;
-    private int versaoPesquisa;
+    private int versaoPesquisa, versaoAbertura;
     private bool pesquisando, temMais, descartado;
     private string? erroPesquisa;
     private object? contextoPesquisa;
@@ -79,6 +79,7 @@
     private async Task Alternar()
     {
         if (aberto) { Fechar(); return; }
+        ++versaoAbertura;
         aberto = true; termo = ""; focar = true;
         if (SearchProvider is null) AtualizarFiltro();
         else await PesquisarAsync(false);
@@ -88,7 +89,7 @@
         ++versaoPesquisa;
         pesquisa?.Cancel(); pesquisa?.Dispose(); pesquisa = null; pesquisando = false;
     }
-    private void Fechar() { aberto = false; CancelarPesquisa(); }
+    private void Fechar() { ++versaoAbertura; aberto = false; focar = rolar = false; CancelarPesquisa(); }
     private Task RepetirPesquisa() => PesquisarAsync(false);
     private async Task PesquisarAsync(bool aguardar)
     {
@@ -122,10 +123,32 @@
     }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!aberto) return;
-        modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/search-select.js");
-        if (focar) { focar = false; await modulo.InvokeVoidAsync("prepare", busca); await busca.FocusAsync(); }
-        if (rolar) { rolar = false; await modulo.InvokeVoidAsync("scrollActive", busca); }
+        if (!aberto || descartado || (!focar && !rolar)) return;
+        var abertura = versaoAbertura;
+        var input = busca;
+        var preparar = focar;
+        var atualizarRolagem = rolar;
+        focar = rolar = false;
+        try
+        {
+            if (modulo is null)
+            {
+                var carregado = await JS.InvokeAsync<IJSObjectReference>("import", "./js/search-select.js");
+                if (descartado) { await carregado.DisposeAsync(); return; }
+                modulo = carregado;
+            }
+            // O combo pode fechar ou reabrir enquanto o navegador carrega o módulo.
+            if (descartado || !aberto || abertura != versaoAbertura) return;
+            if (preparar) await modulo.InvokeVoidAsync("prepare", input);
+            if (!descartado && aberto && abertura == versaoAbertura && atualizarRolagem)
+                await modulo.InvokeVoidAsync("scrollActive", input);
+        }
+        catch (JSDisconnectedException) { }
+        catch (OperationCanceledException) { }
+        catch (JSException ex)
+        {
+            Logger.LogWarning(ex, "Falha ao ajustar foco ou rolagem de {Label}.", Label);
+        }
     }
     private async Task Selecionar(int valor)
     {
