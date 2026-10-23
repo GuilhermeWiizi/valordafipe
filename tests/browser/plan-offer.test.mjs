@@ -3,12 +3,23 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const source = await readFile(new URL("../../src/FipeDados.Web/wwwroot/js/plan-offer.js", import.meta.url), "utf8");
-const { registerConsultation: register, storageKey, registerAndShow, dispose } = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
+const { registerConsultation: register, storageKey, registerAndShow, dispose, consumeSearch } = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
 const now = 1_800_000_000_000;
 function storage(initial = null) {
     let value = initial;
     return { getItem: () => value, setItem: (key, next) => { assert.equal(key, storageKey); value = next; } };
 }
+
+test("pesquisa SSR só é consumida no destino correto e uma única vez", () => {
+    let raw = JSON.stringify({ caminho: "/veiculo", evento: "consulta-1" });
+    const tab = { getItem: () => raw, removeItem: () => { raw = null; } };
+    assert.equal(consumeSearch("/veiculo", tab), "consulta-1");
+    assert.equal(consumeSearch("/veiculo", tab), null);
+    raw = JSON.stringify({ caminho: "/outro", evento: "consulta-2" });
+    assert.equal(consumeSearch("/veiculo", tab), null);
+    raw = "{";
+    assert.equal(consumeSearch("/veiculo", tab), null);
+});
 
 test("pesquisa e comparação compartilham a primeira oferta na terceira consulta", () => {
     const tab = storage();

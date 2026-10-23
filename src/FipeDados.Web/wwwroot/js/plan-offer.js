@@ -2,6 +2,15 @@ export const storageKey = "valordafipe:oferta-plano:v1";
 const interval = 10 * 60 * 1000;
 const handlers = new WeakMap();
 
+export function consumeSearch(path, storage = window.sessionStorage) {
+    try {
+        const raw = storage.getItem("valordafipe:pesquisa");
+        storage.removeItem("valordafipe:pesquisa");
+        const pending = JSON.parse(raw);
+        return pending?.caminho === path && typeof pending.evento === "string" && pending.evento.length > 0 ? pending.evento : null;
+    } catch { return null; }
+}
+
 // Uma única leitura/escrita síncrona compartilha a frequência entre pesquisa e comparação.
 // Retorna null quando o armazenamento não permite manter essa regra.
 export function registerConsultation(storage, eventId, now = Date.now()) {

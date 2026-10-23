@@ -11,6 +11,7 @@ using FipeDados.Web.Desempenho;
 using FipeDados.Web.Protecao;
 using FipeDados.Web.Seo;
 using FipeDados.Web.Jobs;
+using FipeDados.Web.Consulta;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
@@ -115,6 +116,7 @@ app.MapStaticAssets();
 app.MapDeploymentEndpoints();
 app.MapMetricasCarga();
 app.MapSeoEndpoints();
+app.MapConsultaEndpoints();
 app.MapContaEndpoints();
 app.MapPagamentoEndpoints();
 app.MapRazorComponents<App>()

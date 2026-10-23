@@ -827,8 +827,7 @@ a combinação real de modelo/ano encontrada na fonte.
 
 ## Desempenho e teste de carga
 
-- **Render mode:** roteamento em SSR estático com navegação aprimorada. Só `Explorar`
-  (`/consultar-tabela-fipe`), `Comparar` e as ilhas marcadas com `@rendermode` abrem
+- **Render mode:** roteamento em SSR estático com navegação aprimorada. Só `Comparar` e as ilhas marcadas com `@rendermode` abrem
   circuito Blazor. Home, catálogo, marca, modelo, veículo e páginas institucionais vêm
   prontas do servidor.
 - **OutputCache (`Desempenho/PaginaCache.cs`):** páginas de conteúdo ficam 10 minutos em
@@ -851,7 +850,7 @@ curl -s 127.0.0.1:8082/health/carga
 ```
 
 O teste de carga (`tools/FipeDados.Carga`) simula usuários navegando pelas páginas do
-sitemap com pausa de leitura e abre circuitos Blazor reais na página de consulta (SignalR
+sitemap com pausa de leitura e abre circuitos Blazor reais na página de comparação (SignalR
 + blazorpack), confirmando cada render. Não dispara consultas à Fipe. Rode contra uma cópia
 publicada em Release, com a coleta mensal desligada:
 
@@ -862,3 +861,14 @@ dotnet run -c Release --project tools/FipeDados.Carga -- --alvo http://localhost
 Parâmetros: `--usuarios` (navegação HTTP), `--circuitos`, `--rampa` e `--duracao` em
 segundos, `--pausa min-max` em segundos entre cliques e `--veiculos` (URLs lidas do sitemap).
 `CARGA_DEBUG=1` mostra o passo a passo de cada circuito.
+
+### Interação da consulta
+
+`/consultar-tabela-fipe` é SSR estático com o Web Component `fipe-consulta`.
+Carro/moto usa radios nativos e as marcas dos dois tipos vêm no HTML inicial.
+Abrir, filtrar e navegar nos combos não exige circuito Blazor nem conexão SignalR.
+Modelos são pesquisados por HTTP no catálogo local em `/api/consulta/modelos`
+(mínimo de dois caracteres sem marca, limite de 80 resultados e debounce de 300 ms).
+Anos são carregados por `/api/consulta/modelos/{id}/anos`, preservando a descoberta
+lazy já existente quando faltam na base. Trocar tipo ou marca cancela as buscas
+anteriores; erros permitem tentar novamente sem bloquear o formulário.

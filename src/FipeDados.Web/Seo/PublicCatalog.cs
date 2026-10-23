@@ -31,6 +31,16 @@ public sealed class PublicCatalog(IDbContextFactory<FipeDbContext> factory, IOpt
             .Select(m => new ItemSelecao(m.Id, m.Nome)).ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<ConsultationYear>> ConsultationYears(int modelId, CancellationToken ct = default)
+    {
+        await using var db = await factory.CreateDbContextAsync(ct);
+        var rows = await db.Veiculos.AsNoTracking().Where(v => v.ModeloId == modelId)
+            .OrderByDescending(v => v.ZeroKm).ThenByDescending(v => v.Ano).ThenBy(v => v.Id)
+            .Select(v => new { v.Id, v.AnoLabel, v.AnoModeloCodigo, v.Modelo.Marca.Tipo, Marca = v.Modelo.Marca.Slug, Modelo = v.Modelo.Slug })
+            .ToListAsync(ct);
+        return rows.Select(v => new ConsultationYear(v.Id, v.AnoLabel, CatalogPaths.Vehicle(v.Tipo, v.Marca, v.Modelo, v.AnoModeloCodigo))).ToArray();
+    }
+
     public async Task<IReadOnlyList<PublicBrand>> Brands(CancellationToken ct = default)
     {
         await using var db = await factory.CreateDbContextAsync(ct);
@@ -178,6 +188,8 @@ public sealed class PublicCatalog(IDbContextFactory<FipeDbContext> factory, IOpt
         public DateTime? UpdatedAt { get; init; }
     }
 }
+
+public sealed record ConsultationYear(int Id, string Nome, string Caminho);
 
 public sealed record PublicBrand(int Id, string Name, TipoVeiculo Type, string Slug)
 {

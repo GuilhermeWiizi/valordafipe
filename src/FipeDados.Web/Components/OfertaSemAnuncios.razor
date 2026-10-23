@@ -47,12 +47,15 @@
             pesquisaLida = true;
             eventoPesquisa = Oferta.ConsumirPesquisa(new Uri(Nav.Uri).AbsolutePath, Nav.HistoryEntryState);
         }
-        var evento = Pesquisa ? eventoPesquisa : Evento;
-        if (!ResultadoDisponivel || evento is null || evento == ultimoEvento) return;
-        ultimoEvento = evento;
+        if (!ResultadoDisponivel) return;
         try
         {
             modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/plan-offer.js");
+            if (Pesquisa && eventoPesquisa is null)
+                eventoPesquisa = await modulo.InvokeAsync<string?>("consumeSearch", new Uri(Nav.Uri).AbsolutePath);
+            var evento = Pesquisa ? eventoPesquisa : Evento;
+            if (evento is null || evento == ultimoEvento) return;
+            ultimoEvento = evento;
             if (!descartada) await modulo.InvokeVoidAsync("registerAndShow", dialogo, evento);
         }
         catch (JSException) { /* A oferta nunca impede a consulta. */ }

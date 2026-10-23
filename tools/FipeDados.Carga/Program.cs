@@ -3,7 +3,7 @@
 //   dotnet run -c Release --project tools/FipeDados.Carga -- --alvo http://localhost:5090 --usuarios 1000 --circuitos 200 --duracao 120
 //
 // Usuários HTTP navegam pelas páginas SSR (home, catálogo, marca, modelo, veículo, consulta) com
-// pausa de leitura entre cliques. Circuitos abrem a página de consulta como o blazor.web.js faz
+// pausa de leitura entre cliques. Circuitos abrem a página de comparação como o blazor.web.js faz
 // (SignalR/blazorpack + UpdateRootComponents) e ficam conectados, confirmando cada render, para
 // medir o custo real de memória por circuito. Nenhum cenário dispara consulta à Fipe.
 using System.Collections.Concurrent;
@@ -90,7 +90,7 @@ foreach (var (erro, n) in navegacao.Falhas.OrderByDescending(f => f.Value).Take(
 if (opcoes.Circuitos > 0)
 {
     Console.WriteLine();
-    Console.WriteLine("=== Circuitos Blazor (página de consulta) ===");
+    Console.WriteLine("=== Circuitos Blazor (página de comparação) ===");
     Console.WriteLine($"Abertos com render confirmado: {circuitos.Abertos}/{circuitos.Tentativas} · abertura p50 {circuitos.Abertura.Percentil(50):N0} ms, p95 {circuitos.Abertura.Percentil(95):N0} ms · quedas {circuitos.Quedas}");
     foreach (var (erro, n) in circuitos.Falhas.OrderByDescending(f => f.Value).Take(5)) Console.WriteLine($"  Falha ({n}x): {erro}");
     if (inicial is not null && comCircuitos is not null && comCircuitos.CircuitosAtivos > 0)
@@ -134,7 +134,7 @@ async Task CircuitoAsync(TimeSpan atraso, CancellationToken ct)
     var cronometro = Stopwatch.StartNew();
     try
     {
-        var circuito = await CircuitoBlazor.AbrirAsync(http, opcoes.Alvo, "/consultar-tabela-fipe", ct);
+        var circuito = await CircuitoBlazor.AbrirAsync(http, opcoes.Alvo, "/comparar", ct);
         abertos.Add(circuito);
         circuitos.Abertura.Registrar(cronometro.Elapsed, false);
         Interlocked.Increment(ref circuitos.Abertos);

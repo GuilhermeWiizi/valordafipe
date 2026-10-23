@@ -129,9 +129,24 @@ public class DesempenhoTests
             Assert.DoesNotContain(MarcadorCircuito, motos);
             Assert.Contains("aria-current=\"true\" href=\"/?tipo=motos#ranking-title\"", motos);
             Assert.DoesNotContain(MarcadorCircuito, await client.GetStringAsync("/catalogo"));
-            // Consulta e comparação seguem interativas.
+            // Consulta funciona no navegador, sem esperar a negociação de circuito.
             var consulta = await client.GetStringAsync("/consultar-tabela-fipe");
-            Assert.Contains(MarcadorCircuito, consulta);
+            Assert.DoesNotContain(MarcadorCircuito, consulta);
+            Assert.Contains("<fipe-consulta", consulta);
+            Assert.Contains("data-carros=", consulta);
+            Assert.Contains("data-motos=", consulta);
+            Assert.DoesNotContain("Preparando consulta", consulta);
+            Assert.Contains("value=\"2\"", consulta); // Radio de moto disponível no HTML inicial.
+            var module = Regex.Match(consulta, "<script type=\"module\" src=\"([^\"]*js/consulta[^\"]*)\"");
+            Assert.True(module.Success);
+            Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(module.Groups[1].Value)).StatusCode);
+            using var modelos = JsonDocument.Parse(await client.GetStringAsync("/api/consulta/modelos?tipo=1&termo=modelo"));
+            Assert.Equal(modelo.Id, modelos.RootElement.GetProperty("itens")[0].GetProperty("id").GetInt32());
+            using var anos = JsonDocument.Parse(await client.GetStringAsync($"/api/consulta/modelos/{modelo.Id}/anos"));
+            Assert.Equal(2, anos.RootElement.GetArrayLength());
+            Assert.Equal(pathCompleto, anos.RootElement[0].GetProperty("caminho").GetString());
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/consulta/modelos?tipo=3&termo=modelo")).StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/consulta/modelos?tipo=1&marca=-1")).StatusCode);
             var scriptBlazor = Regex.Match(consulta, "<script src=\"([^\"]*blazor\\.web[^\"]*)\"");
             Assert.True(scriptBlazor.Success, "A consulta deve carregar o JavaScript do Blazor.");
             var scriptResponse = await client.GetAsync(scriptBlazor.Groups[1].Value);

@@ -37,6 +37,7 @@
 <body>
     <Routes />
     <ReconnectModal />
+    <script type="module" src="@Assets["js/consulta.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="@Assets["js/pix.js"]"></script>
     <script type="module" src="@Assets["js/historico.js"]"></script>
@@ -61,7 +62,7 @@
     private string? AnalyticsId => AnalyticsConfig.Value.MeasurementId;
     private bool ExibirAnalytics => Analytics.Ativo(Ambiente, AnalyticsConfig.Value, HttpContext.Request.Path);
 
-    // Roteamento em SSR estático com navegação aprimorada: só Explorar, Comparar e as ilhas
+    // Roteamento em SSR estático com navegação aprimorada: só Comparar e as ilhas
     // marcadas com @rendermode abrem circuito. O resto vem pronto do servidor (e do OutputCache).
 
     // AdSense só com o Publisher ID configurado e nunca para contas no plano sem anúncios.

@@ -1,0 +1,23 @@
+<div class="search-select" data-campo="@Campo">
+    <label id="@($"consulta-{Campo}-label")" class="field-label"><span class="field-step">@Step</span>@Label</label>
+    <details>
+        <summary id="@($"consulta-{Campo}")" class="select-trigger" role="button" aria-labelledby="@($"consulta-{Campo}-label consulta-{Campo}-value")" aria-haspopup="listbox" aria-expanded="false" aria-controls="@($"consulta-{Campo}-options")" aria-disabled="@(Disabled ? "true" : "false")">
+            <span id="@($"consulta-{Campo}-value")" data-valor>@Placeholder</span><Icon Name="chevron" Size="17" Class="select-chevron" />
+        </summary>
+        <div class="select-dropdown">
+            <div class="select-search"><Icon Name="search" Size="16" /><input placeholder="Buscar @Label.ToLowerInvariant()…" aria-label="Buscar @Label.ToLowerInvariant()" role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="@($"consulta-{Campo}-options")" /></div>
+            <div id="@($"consulta-{Campo}-options")" class="select-options" role="listbox" aria-labelledby="@($"consulta-{Campo}-label")"></div>
+            <div class="select-no-results" role="status" hidden></div>
+            <div class="select-dropdown-footer"><span data-total>0 opções disponíveis</span><span>↑ ↓ navegar · Enter selecionar</span></div>
+        </div>
+    </details>
+    <small class="field-hint">@Hint</small>
+</div>
+@code {
+    [Parameter, EditorRequired] public string Campo { get; set; } = "";
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Step { get; set; } = "";
+    [Parameter] public string Placeholder { get; set; } = "Selecione";
+    [Parameter] public string Hint { get; set; } = "";
+    [Parameter] public bool Disabled { get; set; }
+}

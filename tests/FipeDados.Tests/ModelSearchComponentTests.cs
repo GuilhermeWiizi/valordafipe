@@ -1,21 +1,12 @@
 using System.Reflection;
-using FipeDados.Core.Enums;
 using FipeDados.Core.Models;
-using FipeDados.Core.Services;
-using FipeDados.Infrastructure.Data;
-using FipeDados.Infrastructure.Fipe;
 using FipeDados.Web.Components;
-using FipeDados.Web.Components.Pages;
-using FipeDados.Web.Contas;
-using FipeDados.Web.Seo;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Components.RenderTree;
 using Microsoft.AspNetCore.Components.Web;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Microsoft.JSInterop;
 
 namespace FipeDados.Tests;
@@ -261,54 +252,7 @@ public class ModelSearchComponentTests
         Assert.Equal(1, Assert.Single(Get<List<ItemSelecao>>(combo, "filtrados")).Id);
     }
 
-    [Fact]
-    public async Task Consulta_ModeloPreencheMarcaEAnos_RepeticaoMantemModelo_ETrocaMarcaLimpa()
-    {
-        await using var services = Services();
-        await using var renderer = new TestRenderer(services);
-        var page = renderer.Create<TestPage>();
-        await renderer.Show(page, []);
-        var catalog = services.GetRequiredService<FakeCatalog>();
-        catalog.Anos = (_, _) => throw new HttpRequestException("Falha temporária");
-        await renderer.Query(page, "serie");
-        Assert.Null(catalog.UltimaMarca);
-        await renderer.Call(page, "TrocarModelo", 10);
-        Assert.Equal(3, Get<int>(page, "marcaId")); Assert.Equal(10, Get<int>(page, "modeloId"));
-        Assert.NotNull(Get<string?>(page, "erro"));
-        catalog.Anos = (_, _) => Task.FromResult<IReadOnlyList<ItemSelecao>>([new(100, "2025 Gasolina")]);
-        await renderer.Call(page, "RepetirEtapa");
-        Assert.Null(Get<string?>(page, "erro"));
-        Assert.Equal(100, Assert.Single(Get<IReadOnlyList<ItemSelecao>>(page, "anos")).Id);
-        Assert.Equal([10, 10], catalog.AnosConsultados);
-        await renderer.Query(page, "serie"); Assert.Equal(3, catalog.UltimaMarca);
-        Set(page, "veiculoId", 100);
-        await renderer.Call(page, "TrocarMarca", 0);
-        Assert.Equal(0, Get<int>(page, "modeloId")); Assert.Equal(0, Get<int>(page, "veiculoId"));
-        Assert.Null(Get<ItemSelecao?>(page, "modeloSelecionado"));
-        Assert.Empty(Get<IReadOnlyList<ItemSelecao>>(page, "anos"));
-    }
-
-    [Fact]
-    public async Task Consulta_TrocarTipoCancelaAnos_EIgnoraRespostaDaSelecaoAnterior()
-    {
-        await using var services = Services();
-        await using var renderer = new TestRenderer(services);
-        var page = renderer.Create<TestPage>(); await renderer.Show(page, []);
-        var catalog = services.GetRequiredService<FakeCatalog>();
-        var antiga = new TaskCompletionSource<IReadOnlyList<ItemSelecao>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        CancellationToken token = default;
-        catalog.Anos = (_, ct) => { token = ct; return antiga.Task; };
-        await renderer.Query(page, "serie");
-        var selecao = renderer.Call(page, "TrocarModelo", 10);
-        await renderer.Call(page, "TrocarTipo", TipoVeiculo.Moto);
-        Assert.True(token.IsCancellationRequested);
-        antiga.SetResult([new(100, "2025 Gasolina")]); await selecao;
-        Assert.Equal(TipoVeiculo.Moto, Get<TipoVeiculo>(page, "tipo"));
-        Assert.Equal(0, Get<int>(page, "marcaId")); Assert.Equal(0, Get<int>(page, "modeloId"));
-        Assert.Empty(Get<IReadOnlyList<ItemSelecao>>(page, "anos"));
-    }
-
-    private static Type Base(object component) => component is SearchSelect ? typeof(SearchSelect) : typeof(Explorar);
+    private static Type Base(object component) => typeof(SearchSelect);
     private static readonly BindingFlags Flags = BindingFlags.NonPublic | BindingFlags.Instance;
     private static T Get<T>(object component, string name) => (T)(Base(component).GetField(name, Flags)?.GetValue(component)
         ?? Base(component).GetProperty(name, Flags)?.GetValue(component))!;
@@ -316,9 +260,6 @@ public class ModelSearchComponentTests
     private static object? Invoke(object component, string name, params object[] args) => Base(component).GetMethod(name, Flags)!.Invoke(component, args);
 
     private static ServiceProvider Services(IJSRuntime? js = null) => new ServiceCollection().AddLogging()
-        .AddSingleton<FakeCatalog>().AddSingleton<ICatalogService>(s => s.GetRequiredService<FakeCatalog>())
-        .AddSingleton(new PublicCatalog(new UnusedDatabase(), Options.Create(new FipeApiOptions())))
-        .AddSingleton<NavigationManager, TestNavigation>().AddSingleton<OfertaPlano>()
         .AddSingleton<IJSRuntime>(js ?? new UnusedJS()).BuildServiceProvider();
 
     public sealed class TestSelect : SearchSelect
@@ -330,11 +271,6 @@ public class ModelSearchComponentTests
     public sealed class RenderedSelect : SearchSelect
     {
         protected override Task OnAfterRenderAsync(bool firstRender) => Task.CompletedTask;
-    }
-    public sealed class TestPage : Explorar
-    {
-        protected override void BuildRenderTree(RenderTreeBuilder builder) { }
-        protected override Task OnInitializedAsync() => Task.CompletedTask;
     }
 #pragma warning disable BL0006
     private sealed class TestRenderer(IServiceProvider services) : Renderer(services, services.GetRequiredService<ILoggerFactory>())
@@ -356,33 +292,12 @@ public class ModelSearchComponentTests
         public Task Click(ComponentBase component) => Dispatcher.InvokeAsync(() =>
             DispatchEventAsync(Attributes(component).First(a => a.AttributeName == "onclick").AttributeEventHandlerId, null, new MouseEventArgs()));
         public Task Search(TestSelect combo, string termo) => Dispatcher.InvokeAsync(() => { Set(combo, "termo", termo); return (Task)Invoke(combo, "AtualizarBusca")!; });
-        public Task<ResultadoPesquisaSelecao> Query(TestPage page, string termo) => Dispatcher.InvokeAsync(() => (Task<ResultadoPesquisaSelecao>)Invoke(page, "PesquisarModelos", termo, CancellationToken.None)!);
         protected override Task UpdateDisplayAsync(in RenderBatch batch) => Task.CompletedTask;
         protected override void HandleException(Exception exception) => throw exception;
-        // Explorar declara @rendermode InteractiveServer; aqui o ciclo roda direto, sem circuito.
         protected override IComponent ResolveComponentForRenderMode(Type componentType, int? parentComponentId,
             IComponentActivator componentActivator, IComponentRenderMode renderMode) => componentActivator.CreateInstance(componentType);
     }
 #pragma warning restore BL0006
-    private sealed class FakeCatalog : ICatalogService
-    {
-        public int? UltimaMarca;
-        public List<int> AnosConsultados = [];
-        public Func<int, CancellationToken, Task<IReadOnlyList<ItemSelecao>>> Anos = (_, _) => Task.FromResult<IReadOnlyList<ItemSelecao>>([]);
-        public Task<ResultadoPesquisaModelos> PesquisarModelosAsync(TipoVeiculo tipo, string termo, int? marcaId = null, CancellationToken ct = default)
-        { UltimaMarca = marcaId; return Task.FromResult(new ResultadoPesquisaModelos([new(10, "Série", 3, "Fabricante")])); }
-        public Task<IReadOnlyList<ItemSelecao>> ObterAnosAsync(int modeloId, CancellationToken ct = default)
-        { AnosConsultados.Add(modeloId); return Anos(modeloId, ct); }
-        public Task<IReadOnlyList<ItemSelecao>> ObterMarcasAsync(TipoVeiculo tipo, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<ItemSelecao>>([new(3, "Fabricante")]);
-        public Task<IReadOnlyList<ItemSelecao>> ObterModelosAsync(int marcaId, CancellationToken ct = default) => throw new NotSupportedException();
-    }
-    private sealed class UnusedDatabase : IDbContextFactory<FipeDbContext>
-    { public FipeDbContext CreateDbContext() => throw new NotSupportedException(); }
-    private sealed class TestNavigation : NavigationManager
-    {
-        public TestNavigation() => Initialize("https://localhost/", "https://localhost/consultar-tabela-fipe");
-        protected override void NavigateToCore(string uri, bool forceLoad) { }
-    }
     private sealed class UnusedJS : IJSRuntime
     {
         public ValueTask<T> InvokeAsync<T>(string identifier, object?[]? args) => throw new NotSupportedException();
